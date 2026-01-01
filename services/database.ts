@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Spot, Invitation, Payment, InvitationStatus, PaymentStatus, UserProfile } from '../types';
+import { Spot, Invitation, Payment, InvitationStatus, PaymentStatus, UserProfile, Drink, Attendance } from '../types';
 
 /* -------------------------------------------------------------------------- */
 /* SPOTS */
@@ -451,5 +451,249 @@ export const profileService = {
     }
 
     return data;
+  },
+};
+
+/* -------------------------------------------------------------------------- */
+/* DRINKS */
+/* -------------------------------------------------------------------------- */
+
+export const drinkService = {
+  // Get drinks for a spot
+  async getDrinks(spotId: string): Promise<Drink[]> {
+    const { data, error } = await supabase
+      .from('drinks')
+      .select(`
+        *,
+        profiles:suggested_by (
+          name
+        )
+      `)
+      .eq('spot_id', spotId)
+      .order('votes', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching drinks:', error);
+      throw error;
+    }
+
+    return data.map((drink: any) => ({
+      id: drink.id,
+      spot_id: drink.spot_id,
+      name: drink.name,
+      image_url: drink.image_url || '',
+      votes: drink.votes || 0,
+      suggested_by: drink.suggested_by,
+      voted_by: drink.voted_by || [],
+      profiles: drink.profiles,
+    }));
+  },
+
+  // Create a drink
+  async createDrink(drinkData: {
+    spot_id: string;
+    name: string;
+    image_url?: string;
+    suggested_by: string;
+  }): Promise<Drink> {
+    const { data, error } = await supabase
+      .from('drinks')
+      .insert({
+        spot_id: drinkData.spot_id,
+        name: drinkData.name,
+        image_url: drinkData.image_url || '',
+        suggested_by: drinkData.suggested_by,
+        votes: 0,
+        voted_by: [],
+      })
+      .select(`
+        *,
+        profiles:suggested_by (
+          name
+        )
+      `)
+      .single();
+
+    if (error) {
+      console.error('Error creating drink:', error);
+      throw error;
+    }
+
+    return {
+      id: data.id,
+      spot_id: data.spot_id,
+      name: data.name,
+      image_url: data.image_url || '',
+      votes: data.votes || 0,
+      suggested_by: data.suggested_by,
+      voted_by: data.voted_by || [],
+      profiles: data.profiles,
+    };
+  },
+
+  // Vote for a drink
+  async voteForDrink(drinkId: string, userId: string): Promise<Drink> {
+    // First get the drink to check if user already voted
+    const { data: drink, error: fetchError } = await supabase
+      .from('drinks')
+      .select('*')
+      .eq('id', drinkId)
+      .single();
+
+    if (fetchError) {
+      throw fetchError;
+    }
+
+    const votedBy = drink.voted_by || [];
+    const hasVoted = votedBy.includes(userId);
+
+    let updatedVotedBy: string[];
+    let votes: number;
+
+    if (hasVoted) {
+      // Remove vote
+      updatedVotedBy = votedBy.filter((id: string) => id !== userId);
+      votes = Math.max(0, (drink.votes || 0) - 1);
+    } else {
+      // Add vote
+      updatedVotedBy = [...votedBy, userId];
+      votes = (drink.votes || 0) + 1;
+    }
+
+    const { data, error } = await supabase
+      .from('drinks')
+      .update({
+        votes,
+        voted_by: updatedVotedBy,
+      })
+      .eq('id', drinkId)
+      .select(`
+        *,
+        profiles:suggested_by (
+          name
+        )
+      `)
+      .single();
+
+    if (error) {
+      console.error('Error voting for drink:', error);
+      throw error;
+    }
+
+    return {
+      id: data.id,
+      spot_id: data.spot_id,
+      name: data.name,
+      image_url: data.image_url || '',
+      votes: data.votes || 0,
+      suggested_by: data.suggested_by,
+      voted_by: data.voted_by || [],
+      profiles: data.profiles,
+    };
+  },
+
+  // Delete a drink
+  async deleteDrink(drinkId: string): Promise<void> {
+    const { error } = await supabase
+      .from('drinks')
+      .delete()
+      .eq('id', drinkId);
+
+    if (error) {
+      console.error('Error deleting drink:', error);
+      throw error;
+    }
+  },
+};
+
+/* -------------------------------------------------------------------------- */
+/* ATTENDANCE */
+/* -------------------------------------------------------------------------- */
+
+export const attendanceService = {
+  // Get attendance for a spot
+  async getAttendance(spotId: string): Promise<Attendance[]> {
+    const { data, error } = await supabase
+      .from('attendance')
+      .select(`
+        *,
+        profiles:user_id (
+          id,
+          name,
+          username,
+          phone,
+          email,
+          role,
+          profile_pic_url,
+          location,
+          mission_count
+        )
+      `)
+      .eq('spot_id', spotId);
+
+    if (error) {
+      console.error('Error fetching attendance:', error);
+      throw error;
+    }
+
+    return data.map((att: any) => ({
+      id: att.id,
+      spot_id: att.spot_id,
+      user_id: att.user_id,
+      attended: att.attended,
+      created_at: att.created_at,
+      updated_at: att.updated_at,
+      profiles: att.profiles,
+    }));
+  },
+
+  // Get user's attendance for a spot
+  async getUserAttendance(spotId: string, userId: string): Promise<Attendance | null> {
+    const { data, error } = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('spot_id', spotId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error fetching user attendance:', error);
+      throw error;
+    }
+
+    return data || null;
+  },
+
+  // Create or update attendance
+  async upsertAttendance(attendanceData: {
+    spot_id: string;
+    user_id: string;
+    attended: boolean;
+  }): Promise<Attendance> {
+    const { data, error } = await supabase
+      .from('attendance')
+      .upsert({
+        spot_id: attendanceData.spot_id,
+        user_id: attendanceData.user_id,
+        attended: attendanceData.attended,
+      }, {
+        onConflict: 'spot_id,user_id'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error upserting attendance:', error);
+      throw error;
+    }
+
+    return {
+      id: data.id,
+      spot_id: data.spot_id,
+      user_id: data.user_id,
+      attended: data.attended,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+    };
   },
 };

@@ -2,7 +2,7 @@
 import React from 'react';
 // FIX: Use namespace import for react-router-dom to address potential module resolution issues.
 import * as ReactRouterDOM from 'react-router-dom';
-import { Home, CreditCard, History, Bell, User, Zap, ChevronsUpDown, LogOut, MessageSquare } from 'lucide-react';
+import { Home, CreditCard, History, Bell, User, Zap, ChevronsUpDown, LogOut, MessageSquare, Wine } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotifications } from '../../contexts/NotificationsContext';
@@ -11,6 +11,7 @@ import { useChat } from '../../contexts/ChatContext';
 const navItems = [
   { path: '/dashboard/home', icon: Home, label: 'Home' },
   { path: '/dashboard/payment', icon: CreditCard, label: 'Payment' },
+  { path: '/dashboard/drinks', icon: Wine, label: 'Drinks' },
   { path: '/dashboard/history', icon: History, label: 'History' },
   { path: '/dashboard/notifications', icon: Bell, label: 'Notifications' },
   { path: '/dashboard/chat', icon: MessageSquare, label: 'Chat' },

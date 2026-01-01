@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { ChatMessage } from '../types';
-import { ArrowLeft, Video, Plus, Send, X, Smile, Trash2, Loader2, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Video, Plus, Send, X, Smile, Trash2, Loader2, MoreVertical, Image as ImageIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as ReactRouterDOM from 'react-router-dom';
@@ -55,8 +55,32 @@ const ChatPage: React.FC = () => {
     const [newMessage, setNewMessage] = useState('');
     const [imagePreviews, setImagePreviews] = useState<string[]>([]);
     const [reactingTo, setReactingTo] = useState<string | null>(null);
+    const [showStickerPicker, setShowStickerPicker] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Popular emojis/stickers (can be extended)
+    const stickers = [
+        '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
+        '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
+        '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩',
+        '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '😣', '😖',
+        '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯',
+        '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔',
+        '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦',
+        '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐', '🥴',
+        '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '😈', '👿',
+        '👹', '👺', '🤡', '💩', '👻', '💀', '☠️', '👽', '👾', '🤖',
+        '🎃', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾',
+        '👋', '🤚', '🖐', '✋', '🖖', '👌', '🤏', '✌️', '🤞', '🤟',
+        '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎',
+        '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '🤝', '🙏',
+        '✍️', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻', '👃', '🧠',
+        '🦷', '🦴', '👀', '👁️', '👅', '👄', '💋', '💘', '💝', '💖',
+        '💗', '💓', '💞', '💕', '💟', '❣️', '💔', '❤️', '🧡', '💛',
+        '💚', '💙', '💜', '🖤', '🤍', '🤎', '💯', '💢', '💥', '💫',
+        '💦', '💨', '🕳️', '💣', '💬', '👁️‍🗨️', '🗨️', '🗯️', '💭', '💤',
+    ];
 
     useEffect(() => { 
         setChatActive(true); 
@@ -94,6 +118,18 @@ const ChatPage: React.FC = () => {
                 };
                 reader.readAsDataURL(file);
             });
+        }
+    };
+
+    const handleStickerSelect = async (sticker: string) => {
+        setShowStickerPicker(false);
+        try {
+            await sendMessage({ 
+                content_text: sticker
+            });
+        } catch (error) {
+            console.error("Failed to send sticker:", error);
+            alert("Failed to send sticker. Please try again.");
         }
     };
 
@@ -263,7 +299,7 @@ const ChatPage: React.FC = () => {
                     )}
                 </AnimatePresence>
 
-                <form onSubmit={handleSend} className="flex items-center gap-3">
+                <form onSubmit={handleSend} className="flex items-center gap-3 relative">
                     <button 
                         type="button" 
                         onClick={() => fileInputRef.current?.click()}
@@ -280,6 +316,38 @@ const ChatPage: React.FC = () => {
                         onChange={handleFileChange} 
                     />
                     
+                    <button
+                        type="button"
+                        onClick={() => setShowStickerPicker(!showStickerPicker)}
+                        className={`p-3 rounded-2xl text-zinc-400 hover:text-white transition-all border border-white/5 ${
+                            showStickerPicker ? 'bg-indigo-600 text-white' : 'bg-zinc-900 hover:bg-zinc-800'
+                        }`}
+                    >
+                        <Smile size={20}/>
+                    </button>
+
+                    {/* Sticker Picker */}
+                    {showStickerPicker && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 10 }}
+                            className="absolute bottom-full left-0 mb-2 w-80 h-64 bg-[#1A1A1A] border border-white/10 rounded-2xl p-4 overflow-y-auto shadow-2xl z-50"
+                        >
+                            <div className="grid grid-cols-8 gap-2">
+                                {stickers.map((sticker, index) => (
+                                    <button
+                                        key={index}
+                                        onClick={() => handleStickerSelect(sticker)}
+                                        className="p-2 hover:bg-zinc-800 rounded-lg text-2xl transition-colors"
+                                    >
+                                        {sticker}
+                                    </button>
+                                ))}
+                            </div>
+                        </motion.div>
+                    )}
+                    
                     <div className="flex-1 relative">
                         <input
                             type="text"
@@ -287,6 +355,7 @@ const ChatPage: React.FC = () => {
                             onChange={(e) => setNewMessage(e.target.value)}
                             placeholder="Send a secure message..."
                             className="w-full py-4 pl-5 pr-12 bg-zinc-900/50 border border-white/5 rounded-2xl focus:outline-none focus:border-indigo-500/50 transition-all text-sm placeholder-zinc-600"
+                            onFocus={() => setShowStickerPicker(false)}
                         />
                         <button 
                             type="submit"

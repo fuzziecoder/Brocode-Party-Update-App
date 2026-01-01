@@ -146,8 +146,12 @@ const HomePage: React.FC = () => {
 
   /* ----------------------------- GOOGLE MAP ----------------------------- */
 
+  const markerRef = useRef<any>(null);
+
   useEffect(() => {
-    if (!spot || !mapRef.current || typeof google === "undefined") return;
+    if (!spot || !mapRef.current || typeof google === "undefined" || !profile) return;
+
+    const isAdminUser = profile.role === UserRole.ADMIN;
 
     if (!mapInstance.current) {
       mapInstance.current = new google.maps.Map(mapRef.current, {
@@ -158,8 +162,110 @@ const HomePage: React.FC = () => {
         zoom: 15,
         disableDefaultUI: true,
       });
+
+      // Add marker for the spot location
+      if (spot.latitude && spot.longitude) {
+        markerRef.current = new google.maps.Marker({
+          position: { lat: spot.latitude, lng: spot.longitude },
+          map: mapInstance.current,
+          draggable: isAdminUser,
+        });
+
+        // If admin, allow dragging marker to update location
+        if (isAdminUser && markerRef.current) {
+          markerRef.current.addListener('dragend', async (e: any) => {
+            const newLat = e.latLng.lat();
+            const newLng = e.latLng.lng();
+            
+            try {
+              await spotService.updateSpot(spot.id, {
+                latitude: newLat,
+                longitude: newLng,
+              });
+              await fetchData();
+            } catch (error: any) {
+              console.error('Failed to update location:', error);
+              alert('Failed to update location. Please try again.');
+            }
+          });
+
+          // Also allow clicking on map to set location (admin only)
+          mapInstance.current.addListener('click', async (e: any) => {
+            const newLat = e.latLng.lat();
+            const newLng = e.latLng.lng();
+            
+            // Move marker to clicked location
+            if (markerRef.current) {
+              markerRef.current.setPosition({ lat: newLat, lng: newLng });
+            }
+            
+            try {
+              await spotService.updateSpot(spot.id, {
+                latitude: newLat,
+                longitude: newLng,
+              });
+              await fetchData();
+            } catch (error: any) {
+              console.error('Failed to update location:', error);
+              alert('Failed to update location. Please try again.');
+            }
+          });
+        }
+      } else if (isAdminUser) {
+        // If no location set, allow admin to click on map to set it
+        mapInstance.current.addListener('click', async (e: any) => {
+          const newLat = e.latLng.lat();
+          const newLng = e.latLng.lng();
+          
+          // Create marker if it doesn't exist
+          if (!markerRef.current) {
+            markerRef.current = new google.maps.Marker({
+              position: { lat: newLat, lng: newLng },
+              map: mapInstance.current,
+              draggable: true,
+            });
+
+            markerRef.current.addListener('dragend', async (dragEvent: any) => {
+              const dragLat = dragEvent.latLng.lat();
+              const dragLng = dragEvent.latLng.lng();
+              
+              try {
+                await spotService.updateSpot(spot.id, {
+                  latitude: dragLat,
+                  longitude: dragLng,
+                });
+                await fetchData();
+              } catch (error: any) {
+                console.error('Failed to update location:', error);
+                alert('Failed to update location. Please try again.');
+              }
+            });
+          } else {
+            markerRef.current.setPosition({ lat: newLat, lng: newLng });
+          }
+          
+          try {
+            await spotService.updateSpot(spot.id, {
+              latitude: newLat,
+              longitude: newLng,
+            });
+            await fetchData();
+          } catch (error: any) {
+            console.error('Failed to update location:', error);
+            alert('Failed to update location. Please try again.');
+          }
+        });
+      }
+    } else {
+      // Update marker position if spot location changed
+      if (markerRef.current && spot.latitude && spot.longitude) {
+        markerRef.current.setPosition({ lat: spot.latitude, lng: spot.longitude });
+      } else if (markerRef.current && (!spot.latitude || !spot.longitude)) {
+        markerRef.current.setMap(null);
+        markerRef.current = null;
+      }
     }
-  }, [spot]);
+  }, [spot, profile, fetchData]);
 
   /* ----------------------------- CREATE SPOT ----------------------------- */
 
@@ -453,7 +559,12 @@ const HomePage: React.FC = () => {
                 </div>
               </Card>
 
-              <Card className="h-[250px] md:h-[350px] p-0 overflow-hidden">
+              <Card className="h-[250px] md:h-[350px] p-0 overflow-hidden relative">
+                {isAdmin && (
+                  <div className="absolute top-2 left-2 z-10 bg-black/70 text-white text-xs px-3 py-2 rounded-lg backdrop-blur-sm">
+                    Admin: Click on map or drag marker to update location
+                  </div>
+                )}
                 <div ref={mapRef} className="w-full h-full" />
               </Card>
 

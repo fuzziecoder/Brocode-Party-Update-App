@@ -28,6 +28,7 @@ export interface UserProfile {
   location: string;
   date_of_birth?: string;
   password?: string;
+  mission_count?: number; // Number of spots attended
   // Fields for mock OTP flow
   isVerified?: boolean;
   otp?: string;
@@ -102,6 +103,16 @@ export interface ChatMessage {
   created_at: string; // ISO String
   profiles: Pick<UserProfile, 'name' | 'profile_pic_url'>; // Joined data
   reactions?: Record<string, string[]>; // e.g. { '👍': ['user_id_1', 'user_id_2'] }
+}
+
+export interface Attendance {
+  id: string; // UUID
+  spot_id: string; // UUID
+  user_id: string; // UUID
+  attended: boolean;
+  created_at: string; // ISO String
+  updated_at: string; // ISO String
+  profiles?: UserProfile; // Joined data from profiles table
 }
 
 // FIX: Add Supabase User type definition to resolve import errors

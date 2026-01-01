@@ -129,7 +129,7 @@ const PaymentPage: React.FC = () => {
 
           <div className="bg-white p-3 md:p-4 rounded-xl w-full max-w-[280px] flex items-center justify-center min-h-[250px]">
             <img 
-              src="/images/payment-qr.png" 
+              src="/images/qr.jpg" 
               alt="Payment QR Code" 
               className="w-full h-auto max-w-[250px]"
               onError={(e) => {
@@ -143,7 +143,7 @@ const PaymentPage: React.FC = () => {
                   placeholder.innerHTML = `
                     <div class="text-gray-600 text-sm mb-2">QR Code Image</div>
                     <div class="text-gray-400 text-xs break-all">${payeeVPA}</div>
-                    <div class="text-gray-500 text-xs mt-2">Add payment-qr.png to /public/images/</div>
+                    <div class="text-gray-500 text-xs mt-2">Add qr.jpg to /public/images/</div>
                   `;
                   container.appendChild(placeholder);
                 }
@@ -160,34 +160,34 @@ const PaymentPage: React.FC = () => {
 
           {/* UPI APP BUTTONS */}
           <div className="grid grid-cols-2 gap-2 md:gap-3 mt-5 w-full">
-            <Button 
-              size="sm"
+            <button
               onClick={() => openUPI("gpay")}
-              className="text-xs md:text-sm py-2"
+              className="flex items-center justify-center gap-2 bg-white hover:bg-gray-100 text-gray-800 font-semibold rounded-lg py-2 px-3 transition-colors"
             >
-              Google Pay
-            </Button>
-            <Button 
-              size="sm"
+              <img src="/images/upi/gpay.png" alt="Google Pay" className="w-6 h-6 object-contain" />
+              <span className="text-xs md:text-sm">Google Pay</span>
+            </button>
+            <button
               onClick={() => openUPI("phonepe")}
-              className="text-xs md:text-sm py-2"
+              className="flex items-center justify-center gap-2 bg-white hover:bg-gray-100 text-gray-800 font-semibold rounded-lg py-2 px-3 transition-colors"
             >
-              PhonePe
-            </Button>
-            <Button 
-              size="sm"
+              <img src="/images/upi/phonepe.png" alt="PhonePe" className="w-6 h-6 object-contain" />
+              <span className="text-xs md:text-sm">PhonePe</span>
+            </button>
+            <button
               onClick={() => openUPI("paytm")}
-              className="text-xs md:text-sm py-2"
+              className="flex items-center justify-center gap-2 bg-white hover:bg-gray-100 text-gray-800 font-semibold rounded-lg py-2 px-3 transition-colors"
             >
-              Paytm
-            </Button>
-            <Button 
-              size="sm"
+              <img src="/images/upi/paytm.png" alt="Paytm" className="w-6 h-6 object-contain" />
+              <span className="text-xs md:text-sm">Paytm</span>
+            </button>
+            <button
               onClick={() => openUPI("navi")}
-              className="text-xs md:text-sm py-2"
+              className="flex items-center justify-center gap-2 bg-white hover:bg-gray-100 text-gray-800 font-semibold rounded-lg py-2 px-3 transition-colors"
             >
-              Navi
-            </Button>
+              <img src="/images/upi/navi.png" alt="Navi" className="w-6 h-6 object-contain" />
+              <span className="text-xs md:text-sm">Navi</span>
+            </button>
           </div>
         </Card>
 

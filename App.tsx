@@ -19,6 +19,7 @@ import HistoryPage from "./pages/HistoryPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import ProfilePage from "./pages/ProfilePage";
 import ChatPage from "./pages/ChatPage";
+import DrinksPage from "./pages/DrinksPage";
 
 import DashboardLayout from "./components/layout/DashboardLayout";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
@@ -45,6 +46,7 @@ const App: React.FC = () => {
                   <Route index element={<Navigate to="home" replace />} />
                   <Route path="home" element={<HomePage />} />
                   <Route path="payment" element={<PaymentPage />} />
+                  <Route path="drinks" element={<DrinksPage />} />
                   <Route path="history" element={<HistoryPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="chat" element={<ChatPage />} />

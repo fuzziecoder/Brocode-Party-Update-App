@@ -13,29 +13,39 @@ import GlowButton from '../components/common/GlowButton';
 import { mockApi, getPlaceholderImage } from '../services/mockApi';
 import Textarea from '../components/common/Textarea';
 import AvatarPicker from '../components/common/AvatarPicker';
+import { profileService } from '../services/database';
 
 type ProfileFormData = {
     name: string;
+    username: string;
     phone: string;
     location: string;
     profile_pic_url: string;
 };
 
 const ProfileForm: React.FC<{ onSave: () => void }> = ({ onSave }) => {
-    const { profile, updateProfile } = useAuth();
+    const { profile, updateProfile, user } = useAuth();
     const [formData, setFormData] = useState<ProfileFormData>({
         name: profile?.name || '',
+        username: profile?.username || '',
         phone: profile?.phone || '',
         location: profile?.location || '',
         profile_pic_url: profile?.profile_pic_url || '',
     });
     const [errors, setErrors] = useState<Partial<Record<keyof ProfileFormData, string>>>({});
     const [loading, setLoading] = useState(false);
+    const [checkingUsername, setCheckingUsername] = useState(false);
 
     const validateField = (name: keyof Omit<ProfileFormData, 'profile_pic_url'>, value: string): string => {
         let error = '';
         if (!value.trim()) {
             error = `${name.charAt(0).toUpperCase() + name.slice(1)} is required.`;
+        }
+        if (name === 'username' && value.trim()) {
+            // Username validation: alphanumeric and underscore only
+            if (!/^[a-zA-Z0-9_]+$/.test(value.trim())) {
+                error = 'Username can only contain letters, numbers, and underscores.';
+            }
         }
         return error;
     };
@@ -43,16 +53,79 @@ const ProfileForm: React.FC<{ onSave: () => void }> = ({ onSave }) => {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target as { name: keyof ProfileFormData, value: string };
         setFormData(prev => ({ ...prev, [name]: value }));
+        // Clear error for this field when user types
+        if (errors[name]) {
+            setErrors(prev => ({ ...prev, [name]: undefined }));
+        }
+    };
+
+    const handleUsernameBlur = async () => {
+        if (!formData.username.trim() || formData.username === profile?.username) {
+            return; // Don't check if empty or unchanged
+        }
+
+        setCheckingUsername(true);
+        try {
+            const isUnique = await profileService.isUsernameUnique(
+                formData.username.trim(),
+                user?.id
+            );
+            if (!isUnique) {
+                setErrors(prev => ({
+                    ...prev,
+                    username: 'Username is already taken. Please choose another one.'
+                }));
+            } else {
+                setErrors(prev => ({ ...prev, username: undefined }));
+            }
+        } catch (error) {
+            console.error('Error checking username:', error);
+            setErrors(prev => ({
+                ...prev,
+                username: 'Error checking username availability. Please try again.'
+            }));
+        } finally {
+            setCheckingUsername(false);
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // Validate all fields
+        const newErrors: Partial<Record<keyof ProfileFormData, string>> = {};
+        (Object.keys(formData) as Array<keyof Omit<ProfileFormData, 'profile_pic_url'>>).forEach((key) => {
+            const error = validateField(key, formData[key]);
+            if (error) newErrors[key] = error;
+        });
+
+        // Check username uniqueness if changed
+        if (formData.username.trim() !== profile?.username) {
+            try {
+                const isUnique = await profileService.isUsernameUnique(
+                    formData.username.trim(),
+                    user?.id
+                );
+                if (!isUnique) {
+                    newErrors.username = 'Username is already taken. Please choose another one.';
+                }
+            } catch (error) {
+                newErrors.username = 'Error checking username availability. Please try again.';
+            }
+        }
+
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            return;
+        }
+
         setLoading(true);
         try {
             await updateProfile(formData);
             onSave();
-        } catch (err) {
-             console.error(err);
+        } catch (err: any) {
+            console.error(err);
+            alert(err?.message || 'Failed to update profile. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -61,9 +134,31 @@ const ProfileForm: React.FC<{ onSave: () => void }> = ({ onSave }) => {
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
             <AvatarPicker label="BRO-DENTITY" initialValue={formData.profile_pic_url} onChange={(url) => setFormData(p => ({...p, profile_pic_url: url}))} />
+            <div>
+                <Input 
+                    label="Username" 
+                    name="username" 
+                    value={formData.username} 
+                    onChange={handleChange}
+                    onBlur={handleUsernameBlur}
+                    icon={<Plus size={16}/>}
+                />
+                {errors.username && (
+                    <p className="text-red-400 text-xs mt-1">{errors.username}</p>
+                )}
+                {checkingUsername && (
+                    <p className="text-zinc-400 text-xs mt-1">Checking availability...</p>
+                )}
+            </div>
             <Input label="Name" name="name" value={formData.name} onChange={handleChange} icon={<Plus size={16}/>} />
+            {errors.name && (
+                <p className="text-red-400 text-xs -mt-4">{errors.name}</p>
+            )}
             <Input label="Handle" name="location" value={formData.location} onChange={handleChange} icon={<MapPin size={16}/>} />
-            <Button type="submit" disabled={loading} className="w-full py-4 font-black uppercase tracking-widest">Update Profile</Button>
+            {errors.location && (
+                <p className="text-red-400 text-xs -mt-4">{errors.location}</p>
+            )}
+            <Button type="submit" disabled={loading || checkingUsername} className="w-full py-4 font-black uppercase tracking-widest">Update Profile</Button>
         </form>
     );
 };

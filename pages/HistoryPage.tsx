@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Edit2, Trash2 } from 'lucide-react';
+import { Edit2, Trash2, CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { Spot, UserRole } from '../types';
+import { Spot, UserRole, Attendance } from '../types';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Modal from '../components/common/Modal';
 import Input from '../components/common/Input';
 import Textarea from '../components/common/Textarea';
-import { spotService } from '../services/database';
+import { spotService, attendanceService } from '../services/database';
 import { checkDatabaseSetup, getSetupInstructions } from '../services/dbCheck';
 
 
@@ -29,14 +29,30 @@ const HistoryPage: React.FC = () => {
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [spotToDelete, setSpotToDelete] = useState<string | null>(null);
     const [dbSetupError, setDbSetupError] = useState<string | null>(null);
+    const [attendances, setAttendances] = useState<Record<string, Attendance | null>>({});
     
     const fetchData = useCallback(async () => {
+        if (!profile) return;
+        
         setLoading(true);
         setError(null);
         setDbSetupError(null);
         try {
             const data = await spotService.getPastSpots();
             setHistory(data || []);
+
+            // Fetch attendance for each spot
+            const attendanceMap: Record<string, Attendance | null> = {};
+            for (const spot of data || []) {
+                try {
+                    const attendance = await attendanceService.getUserAttendance(spot.id, profile.id);
+                    attendanceMap[spot.id] = attendance;
+                } catch (err) {
+                    console.error(`Error fetching attendance for spot ${spot.id}:`, err);
+                    attendanceMap[spot.id] = null;
+                }
+            }
+            setAttendances(attendanceMap);
         } catch(err: any) {
             if (err.message?.includes('does not exist') || err.message?.includes('relation')) {
                 const setup = await checkDatabaseSetup();
@@ -48,7 +64,7 @@ const HistoryPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [profile]);
 
     useEffect(() => {
         const checkSetup = async () => {
@@ -118,6 +134,34 @@ const HistoryPage: React.FC = () => {
             fetchData();
         } catch (err: any) {
             alert('Failed to delete spot: ' + err.message);
+        }
+    };
+
+    const handleAttendance = async (spotId: string, attended: boolean) => {
+        if (!profile) return;
+
+        try {
+            await attendanceService.upsertAttendance({
+                spot_id: spotId,
+                user_id: profile.id,
+                attended,
+            });
+            // Update local state
+            setAttendances(prev => ({
+                ...prev,
+                [spotId]: {
+                    id: '',
+                    spot_id: spotId,
+                    user_id: profile.id,
+                    attended,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                }
+            }));
+            // Refresh profile to update mission_count
+            window.location.reload(); // Simple way to refresh - could be improved
+        } catch (err: any) {
+            alert('Failed to update attendance: ' + err.message);
         }
     };
 
@@ -195,6 +239,54 @@ const HistoryPage: React.FC = () => {
                                 ) : (
                                     <div className="text-gray-500">
                                         <p>No feedback yet.</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Attendance Section */}
+                            <div className="mt-4 pt-4 border-t border-zinc-800">
+                                <h3 className="font-semibold text-gray-400 mb-3">Did you attend this spot?</h3>
+                                {attendances[spot.id] ? (
+                                    <div className="flex items-center gap-3">
+                                        {attendances[spot.id]?.attended ? (
+                                            <>
+                                                <CheckCircle className="w-5 h-5 text-green-400" />
+                                                <span className="text-green-400 font-semibold">You attended this spot</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <XCircle className="w-5 h-5 text-red-400" />
+                                                <span className="text-red-400 font-semibold">You did not attend</span>
+                                            </>
+                                        )}
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            onClick={() => handleAttendance(spot.id, !attendances[spot.id]?.attended)}
+                                            className="ml-auto"
+                                        >
+                                            Change
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="flex gap-2">
+                                        <Button
+                                            size="sm"
+                                            onClick={() => handleAttendance(spot.id, true)}
+                                            className="flex items-center gap-2"
+                                        >
+                                            <CheckCircle className="w-4 h-4" />
+                                            Yes, I attended
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            onClick={() => handleAttendance(spot.id, false)}
+                                            className="flex items-center gap-2"
+                                        >
+                                            <XCircle className="w-4 h-4" />
+                                            No, I didn't attend
+                                        </Button>
                                     </div>
                                 )}
                             </div>

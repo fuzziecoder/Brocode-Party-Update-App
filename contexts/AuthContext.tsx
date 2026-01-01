@@ -136,10 +136,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user) throw new Error("No user logged in");
 
-    const updatedProfile = await mockApi.updateProfile(user.id, updates);
+    try {
+      // First try to update in Supabase
+      let userId = user.id;
+      
+      // If user.id is not a UUID, try to find it in database
+      if (!userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        const { data: dbProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .or(`email.eq.${profile?.email || ''},phone.eq.${profile?.phone || ''},username.eq.${profile?.username || ''}`)
+          .single();
+        
+        if (dbProfile) {
+          userId = dbProfile.id;
+        }
+      }
 
-    setProfile(updatedProfile);
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(updatedProfile));
+      // Update in database
+      const updatedProfile = await profileService.updateProfile(userId, updates);
+      
+      setProfile(updatedProfile);
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(updatedProfile));
+    } catch (error) {
+      console.error('Error updating profile in database, trying mockApi fallback:', error);
+      // Fallback to mockApi for development
+      try {
+        const updatedProfile = await mockApi.updateProfile(user.id, updates);
+        setProfile(updatedProfile);
+        localStorage.setItem(PROFILE_KEY, JSON.stringify(updatedProfile));
+      } catch (mockError) {
+        console.error('Failed to update profile:', mockError);
+        throw mockError;
+      }
+    }
   };
 
   const value: AuthContextType = {
