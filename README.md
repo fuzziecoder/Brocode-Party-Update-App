@@ -1,5 +1,5 @@
-### Try Using The App Vroo...
+# Try Using The App Vroo...
 
 ## Launching Soon 
 
-## Stay Tuned
+### Stay Tuned
