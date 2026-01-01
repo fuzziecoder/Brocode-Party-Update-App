@@ -4,7 +4,8 @@ import { UserRole, Spot, Payment, PaymentStatus } from "../types";
 import Card from "../components/common/Card";
 import Button from "../components/common/Button";
 import { QRCodeCanvas } from "qrcode.react";
-import { spotService, paymentService } from "../services/database";
+import { spotService, paymentService, invitationService } from "../services/database";
+import { InvitationStatus } from "../types";
 import { supabase } from "../services/supabase";
 
 /* -------------------------------------------------------------------------- */
@@ -39,6 +40,35 @@ const PaymentPage: React.FC = () => {
       setSpot(spotData);
 
       if (spotData) {
+        // Get all confirmed invitations
+        const invitations = await invitationService.getInvitations(spotData.id);
+        const confirmedInvitations = invitations.filter(
+          (inv) => inv.status === InvitationStatus.CONFIRMED
+        );
+
+        // Get existing payments
+        const existingPayments = await paymentService.getPayments(spotData.id);
+        const existingPaymentUserIds = new Set(
+          existingPayments.map((p) => p.user_id)
+        );
+
+        // Create payment entries for confirmed users who don't have one yet
+        const paymentPromises = confirmedInvitations
+          .filter((inv) => !existingPaymentUserIds.has(inv.user_id))
+          .map((inv) =>
+            paymentService.upsertPayment({
+              spot_id: spotData.id,
+              user_id: inv.user_id,
+              status: PaymentStatus.NOT_PAID,
+            }).catch((err) => {
+              console.error(`Failed to create payment for user ${inv.user_id}:`, err);
+              return null;
+            })
+          );
+
+        await Promise.all(paymentPromises);
+
+        // Fetch updated payments list
         const paymentData = await paymentService.getPayments(spotData.id);
         setPayments(paymentData);
       } else {

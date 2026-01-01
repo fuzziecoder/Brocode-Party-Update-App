@@ -7,6 +7,7 @@ import {
   Spot,
   Invitation,
   InvitationStatus,
+  PaymentStatus,
   UserRole,
 } from "../types";
 import Card from "../components/common/Card";
@@ -15,7 +16,7 @@ import Modal from "../components/common/Modal";
 import Input from "../components/common/Input";
 import GlowButton from "../components/common/GlowButton";
 import Textarea from "../components/common/Textarea";
-import { spotService, invitationService } from "../services/database";
+import { spotService, invitationService, paymentService } from "../services/database";
 import { supabase } from "../services/supabase";
 import { checkDatabaseSetup, getSetupInstructions } from "../services/dbCheck";
 import { useNotifications } from "../contexts/NotificationsContext";
@@ -373,8 +374,25 @@ const HomePage: React.FC = () => {
     invitationId: string,
     status: InvitationStatus
   ) => {
+    if (!profile || !spot) return;
+    
     try {
       await invitationService.updateInvitationStatus(invitationId, status);
+      
+      // Create or update payment when user confirms
+      if (status === InvitationStatus.CONFIRMED) {
+        try {
+          await paymentService.upsertPayment({
+            spot_id: spot.id,
+            user_id: profile.id,
+            status: PaymentStatus.NOT_PAID,
+          });
+        } catch (paymentError) {
+          console.error("Failed to create payment entry:", paymentError);
+          // Don't block RSVP update if payment creation fails
+        }
+      }
+      
       // Refresh data to show updated status immediately
       await fetchData();
     } catch (error: any) {
@@ -393,6 +411,21 @@ const HomePage: React.FC = () => {
         user_id: profile.id,
         status,
       });
+      
+      // Create or update payment when user confirms
+      if (status === InvitationStatus.CONFIRMED) {
+        try {
+          await paymentService.upsertPayment({
+            spot_id: spot.id,
+            user_id: profile.id,
+            status: PaymentStatus.NOT_PAID,
+          });
+        } catch (paymentError) {
+          console.error("Failed to create payment entry:", paymentError);
+          // Don't block RSVP creation if payment creation fails
+        }
+      }
+      
       // Refresh data to show updated status
       await fetchData();
     } catch (error: any) {

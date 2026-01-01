@@ -30,14 +30,31 @@ const ProfileForm: React.FC<{ onSave: () => void }> = ({ onSave }) => {
         username: profile?.username || '',
         phone: profile?.phone || '',
         location: profile?.location || '',
-        profile_pic_url: profile?.profile_pic_url || '',
+        profile_pic_url: profile?.profile_pic_url || getPlaceholderImage(profile?.username || 'default'),
     });
+
+    // Update form data when profile changes
+    useEffect(() => {
+        if (profile) {
+            setFormData({
+                name: profile.name || '',
+                username: profile.username || '',
+                phone: profile.phone || '',
+                location: profile.location || '',
+                profile_pic_url: profile.profile_pic_url || getPlaceholderImage(profile.username || 'default'),
+            });
+        }
+    }, [profile]);
     const [errors, setErrors] = useState<Partial<Record<keyof ProfileFormData, string>>>({});
     const [loading, setLoading] = useState(false);
     const [checkingUsername, setCheckingUsername] = useState(false);
 
     const validateField = (name: keyof Omit<ProfileFormData, 'profile_pic_url'>, value: string): string => {
         let error = '';
+        // Location is optional, skip validation for it
+        if (name === 'location') {
+            return error;
+        }
         if (!value.trim()) {
             error = `${name.charAt(0).toUpperCase() + name.slice(1)} is required.`;
         }
@@ -249,7 +266,15 @@ const ProfilePage: React.FC = () => {
                 
                 <div className="relative mb-6">
                     <div className="absolute -inset-4 bg-gradient-to-tr from-indigo-500 to-pink-500 rounded-full blur-2xl opacity-20" />
-                    <img src={profile.profile_pic_url} className="w-32 h-32 rounded-full border-4 border-[#111] shadow-2xl object-cover relative z-10" alt={profile.name} />
+                    <img 
+                        src={profile.profile_pic_url || getPlaceholderImage(profile.username)} 
+                        className="w-32 h-32 rounded-full border-4 border-[#111] shadow-2xl object-cover relative z-10" 
+                        alt={profile.name}
+                        onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = getPlaceholderImage(profile.username);
+                        }}
+                    />
                 </div>
                 
                 <h1 className="text-4xl font-black text-white tracking-tighter">@{profile.username}</h1>

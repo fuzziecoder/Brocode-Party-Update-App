@@ -63,6 +63,15 @@ export interface Drink {
   profiles?: { name: string }; // Joined data for suggester's name
 }
 
+export interface Cigarette {
+  id: string; // UUID
+  spot_id: string; // UUID
+  image_url: string;
+  added_by: string; // User's ID
+  created_at: string; // ISO String
+  profiles?: { name: string; profile_pic_url?: string }; // Joined data for adder's name
+}
+
 export interface Invitation {
   id: string; // UUID
   spot_id: string; // UUID

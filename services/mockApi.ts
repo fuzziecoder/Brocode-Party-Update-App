@@ -301,10 +301,13 @@ export const mockApi = {
   ): Promise<{ user: User; profile: UserProfile }> {
     await delay(300);
 
+    // Strip formatting from phone number for comparison
+    const cleanIdentifier = identifier.replace(/\D/g, '').length === 10 ? identifier.replace(/\D/g, '') : identifier;
+
     const profile = Object.values(USERS_DB).find(
       (u) =>
         (u.email === identifier || 
-         u.phone === identifier || 
+         u.phone === cleanIdentifier || 
          u.username === identifier) &&
         u.password === password
     );

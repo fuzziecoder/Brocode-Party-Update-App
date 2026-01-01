@@ -1,23 +1,30 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "../hooks/useAuth";
-import { UserRole, Spot, Drink, PaymentStatus } from "../types";
+import { UserRole, Spot, Drink, PaymentStatus, Cigarette } from "../types";
 import Card from "../components/common/Card";
 import Button from "../components/common/Button";
 import Modal from "../components/common/Modal";
 import Input from "../components/common/Input";
-import { spotService, paymentService, drinkService } from "../services/database";
+import { spotService, paymentService, drinkService, cigaretteService } from "../services/database";
 import { supabase } from "../services/supabase";
-import { Plus, ThumbsUp, Trash2, Loader2 } from "lucide-react";
+import { Plus, ThumbsUp, Trash2, Loader2, Image as ImageIcon, X, Camera } from "lucide-react";
 
 const DrinksPage: React.FC = () => {
   const { profile } = useAuth();
   const [spot, setSpot] = useState<Spot | null>(null);
   const [drinks, setDrinks] = useState<Drink[]>([]);
+  const [cigarettes, setCigarettes] = useState<Cigarette[]>([]);
   const [loading, setLoading] = useState(true);
   const [isPaid, setIsPaid] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDrinkModalOpen, setIsDrinkModalOpen] = useState(false);
+  const [isCigaretteModalOpen, setIsCigaretteModalOpen] = useState(false);
   const [newDrinkName, setNewDrinkName] = useState("");
   const [newDrinkImage, setNewDrinkImage] = useState("");
+  const [newDrinkImagePreview, setNewDrinkImagePreview] = useState<string | null>(null);
+  const [newCigaretteImage, setNewCigaretteImage] = useState<string | null>(null);
+  const [newCigaretteImagePreview, setNewCigaretteImagePreview] = useState<string | null>(null);
+  const drinkImageInputRef = useRef<HTMLInputElement>(null);
+  const cigaretteImageInputRef = useRef<HTMLInputElement>(null);
 
   const fetchData = useCallback(async () => {
     if (!profile) return;
@@ -32,12 +39,17 @@ const DrinksPage: React.FC = () => {
         const userPayment = payments.find((p) => p.user_id === profile.id);
         setIsPaid(userPayment?.status === PaymentStatus.PAID);
 
-        // Only fetch drinks if user is paid
+        // Only fetch drinks and cigarettes if user is paid
         if (userPayment?.status === PaymentStatus.PAID) {
-          const drinksData = await drinkService.getDrinks(spotData.id);
+          const [drinksData, cigarettesData] = await Promise.all([
+            drinkService.getDrinks(spotData.id),
+            cigaretteService.getCigarettes(spotData.id),
+          ]);
           setDrinks(drinksData);
+          setCigarettes(cigarettesData);
         } else {
           setDrinks([]);
+          setCigarettes([]);
         }
       } else {
         setDrinks([]);
@@ -53,9 +65,9 @@ const DrinksPage: React.FC = () => {
   useEffect(() => {
     fetchData();
 
-    // Set up real-time subscription for drinks
+    // Set up real-time subscription for drinks and cigarettes
     if (spot && isPaid) {
-      const channel = supabase
+      const drinksChannel = supabase
         .channel(`drinks-${spot.id}`)
         .on(
           'postgres_changes',
@@ -71,11 +83,54 @@ const DrinksPage: React.FC = () => {
         )
         .subscribe();
 
+      const cigarettesChannel = supabase
+        .channel(`cigarettes-${spot.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'cigarettes',
+            filter: `spot_id=eq.${spot.id}`,
+          },
+          () => {
+            fetchData();
+          }
+        )
+        .subscribe();
+
       return () => {
-        supabase.removeChannel(channel);
+        supabase.removeChannel(drinksChannel);
+        supabase.removeChannel(cigarettesChannel);
       };
     }
   }, [fetchData, spot?.id, isPaid]);
+
+  const handleDrinkImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setNewDrinkImagePreview(result);
+        setNewDrinkImage(result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCigaretteImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setNewCigaretteImagePreview(result);
+        setNewCigaretteImage(result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleAddDrink = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,15 +140,46 @@ const DrinksPage: React.FC = () => {
       await drinkService.createDrink({
         spot_id: spot.id,
         name: newDrinkName.trim(),
-        image_url: newDrinkImage.trim() || undefined,
+        image_url: newDrinkImage || undefined,
         suggested_by: profile.id,
       });
       setNewDrinkName("");
       setNewDrinkImage("");
-      setIsModalOpen(false);
+      setNewDrinkImagePreview(null);
+      setIsDrinkModalOpen(false);
       await fetchData();
     } catch (error: any) {
       alert(`Failed to add drink: ${error.message || 'Please try again.'}`);
+    }
+  };
+
+  const handleAddCigarette = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!spot || !profile || !newCigaretteImage) return;
+
+    try {
+      await cigaretteService.createCigarette({
+        spot_id: spot.id,
+        image_url: newCigaretteImage,
+        added_by: profile.id,
+      });
+      setNewCigaretteImage(null);
+      setNewCigaretteImagePreview(null);
+      setIsCigaretteModalOpen(false);
+      await fetchData();
+    } catch (error: any) {
+      alert(`Failed to add cigarette: ${error.message || 'Please try again.'}`);
+    }
+  };
+
+  const handleDeleteCigarette = async (cigaretteId: string) => {
+    if (!confirm("Are you sure you want to delete this cigarette?")) return;
+
+    try {
+      await cigaretteService.deleteCigarette(cigaretteId);
+      await fetchData();
+    } catch (error: any) {
+      alert(`Failed to delete cigarette: ${error.message || 'Please try again.'}`);
     }
   };
 
@@ -161,78 +247,131 @@ const DrinksPage: React.FC = () => {
   return (
     <div className="space-y-6 md:space-y-8 pb-20 max-w-6xl mx-auto px-4">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl md:text-3xl font-bold">Drinks</h1>
-        <Button onClick={() => setIsModalOpen(true)}>
-          <Plus size={16} className="mr-2" />
-          Add Drink
-        </Button>
+        <h1 className="text-2xl md:text-3xl font-bold">Drinks & Cigarettes</h1>
+        <div className="flex gap-2">
+          <Button onClick={() => setIsCigaretteModalOpen(true)} variant="secondary">
+            <Camera size={16} className="mr-2" />
+            Add Cigarette
+          </Button>
+          <Button onClick={() => setIsDrinkModalOpen(true)}>
+            <Plus size={16} className="mr-2" />
+            Add Drink
+          </Button>
+        </div>
       </div>
 
-      {drinks.length === 0 ? (
-        <Card className="p-8 text-center">
-          <p className="text-gray-400 mb-4">No drinks suggested yet.</p>
-          <p className="text-sm text-gray-500">Be the first to suggest a drink!</p>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-          {drinks.map((drink) => (
-            <Card key={drink.id} className="p-4 md:p-6">
-              <div className="relative group">
-                {drink.image_url ? (
+      {/* DRINKS SECTION */}
+      <div>
+        <h2 className="text-xl md:text-2xl font-semibold mb-4">Drinks</h2>
+
+        {drinks.length === 0 ? (
+          <Card className="p-8 text-center">
+            <p className="text-gray-400 mb-4">No drinks suggested yet.</p>
+            <p className="text-sm text-gray-500">Be the first to suggest a drink!</p>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            {drinks.map((drink) => (
+              <Card key={drink.id} className="p-4 md:p-6">
+                <div className="relative group">
+                  {drink.image_url ? (
+                    <img
+                      src={drink.image_url}
+                      alt={drink.name}
+                      className="w-full h-48 object-cover rounded-lg mb-4"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-48 bg-zinc-800 rounded-lg mb-4 flex items-center justify-center">
+                      <span className="text-zinc-500 text-4xl">🍺</span>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => handleDeleteDrink(drink.id)}
+                    className="absolute top-2 right-2 p-2 bg-black/70 hover:bg-black/90 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+                
+                <h3 className="text-lg font-semibold mb-2">{drink.name}</h3>
+                
+                {drink.profiles && (
+                  <p className="text-sm text-zinc-400 mb-4">
+                    Suggested by {drink.profiles.name}
+                  </p>
+                )}
+
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => handleVote(drink.id)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                      hasUserVoted(drink)
+                        ? "bg-indigo-600 text-white"
+                        : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                    }`}
+                  >
+                    <ThumbsUp size={16} />
+                    <span>{drink.votes}</span>
+                  </button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* CIGARETTES SECTION */}
+      <div>
+        <h2 className="text-xl md:text-2xl font-semibold mb-4">Cigarettes</h2>
+        {cigarettes.length === 0 ? (
+          <Card className="p-8 text-center">
+            <p className="text-gray-400 mb-4">No cigarettes added yet.</p>
+            <p className="text-sm text-gray-500">Add your cigarette pack!</p>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+            {cigarettes.map((cigarette) => (
+              <Card key={cigarette.id} className="p-4 relative group">
+                <div className="relative">
                   <img
-                    src={drink.image_url}
-                    alt={drink.name}
-                    className="w-full h-48 object-cover rounded-lg mb-4"
+                    src={cigarette.image_url}
+                    alt="Cigarette"
+                    className="w-full h-48 object-cover rounded-lg"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.style.display = 'none';
                     }}
                   />
-                ) : (
-                  <div className="w-full h-48 bg-zinc-800 rounded-lg mb-4 flex items-center justify-center">
-                    <span className="text-zinc-500 text-4xl">🍺</span>
-                  </div>
+                  <button
+                    onClick={() => handleDeleteCigarette(cigarette.id)}
+                    className="absolute top-2 right-2 p-2 bg-black/70 hover:bg-black/90 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+                {cigarette.profiles && (
+                  <p className="text-xs text-zinc-400 mt-2 text-center">
+                    Added by {cigarette.profiles.name}
+                  </p>
                 )}
-                <button
-                  onClick={() => handleDeleteDrink(drink.id)}
-                  className="absolute top-2 right-2 p-2 bg-black/70 hover:bg-black/90 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-              
-              <h3 className="text-lg font-semibold mb-2">{drink.name}</h3>
-              
-              {drink.profiles && (
-                <p className="text-sm text-zinc-400 mb-4">
-                  Suggested by {drink.profiles.name}
-                </p>
-              )}
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
 
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={() => handleVote(drink.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                    hasUserVoted(drink)
-                      ? "bg-indigo-600 text-white"
-                      : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-                  }`}
-                >
-                  <ThumbsUp size={16} />
-                  <span>{drink.votes}</span>
-                </button>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-
+      {/* ADD DRINK MODAL */}
       <Modal
-        isOpen={isModalOpen}
+        isOpen={isDrinkModalOpen}
         onClose={() => {
-          setIsModalOpen(false);
+          setIsDrinkModalOpen(false);
           setNewDrinkName("");
           setNewDrinkImage("");
+          setNewDrinkImagePreview(null);
         }}
         title="Add Drink"
       >
@@ -244,12 +383,49 @@ const DrinksPage: React.FC = () => {
             placeholder="e.g., Kingfisher, Old Monk, etc."
             required
           />
-          <Input
-            label="Image URL (Optional)"
-            value={newDrinkImage}
-            onChange={(e) => setNewDrinkImage(e.target.value)}
-            placeholder="https://example.com/drink-image.jpg"
-          />
+          
+          <div>
+            <label className="block text-sm font-medium mb-2">Drink Image</label>
+            {newDrinkImagePreview ? (
+              <div className="relative">
+                <img src={newDrinkImagePreview} alt="Preview" className="w-full h-48 object-cover rounded-lg mb-2" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewDrinkImagePreview(null);
+                    setNewDrinkImage("");
+                    if (drinkImageInputRef.current) drinkImageInputRef.current.value = '';
+                  }}
+                  className="absolute top-2 right-2 p-2 bg-black/70 hover:bg-black/90 rounded-full text-white"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <div
+                onClick={() => drinkImageInputRef.current?.click()}
+                className="w-full h-48 border-2 border-dashed border-zinc-700 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-zinc-600 transition-colors"
+              >
+                <ImageIcon size={32} className="text-zinc-500 mb-2" />
+                <p className="text-sm text-zinc-400">Click to upload image</p>
+              </div>
+            )}
+            <input
+              ref={drinkImageInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleDrinkImageUpload}
+              className="hidden"
+            />
+            <Input
+              label="Or Image URL (Optional)"
+              value={newDrinkImage && !newDrinkImagePreview ? newDrinkImage : ''}
+              onChange={(e) => setNewDrinkImage(e.target.value)}
+              placeholder="https://example.com/drink-image.jpg"
+              className="mt-2"
+            />
+          </div>
+          
           <div className="flex gap-2">
             <Button type="submit" className="flex-1">
               Add Drink
@@ -258,9 +434,77 @@ const DrinksPage: React.FC = () => {
               type="button"
               variant="secondary"
               onClick={() => {
-                setIsModalOpen(false);
+                setIsDrinkModalOpen(false);
                 setNewDrinkName("");
                 setNewDrinkImage("");
+                setNewDrinkImagePreview(null);
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ADD CIGARETTE MODAL */}
+      <Modal
+        isOpen={isCigaretteModalOpen}
+        onClose={() => {
+          setIsCigaretteModalOpen(false);
+          setNewCigaretteImage(null);
+          setNewCigaretteImagePreview(null);
+        }}
+        title="Add Cigarette"
+      >
+        <form onSubmit={handleAddCigarette} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">Cigarette Image *</label>
+            {newCigaretteImagePreview ? (
+              <div className="relative">
+                <img src={newCigaretteImagePreview} alt="Preview" className="w-full h-64 object-cover rounded-lg mb-2" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewCigaretteImagePreview(null);
+                    setNewCigaretteImage(null);
+                    if (cigaretteImageInputRef.current) cigaretteImageInputRef.current.value = '';
+                  }}
+                  className="absolute top-2 right-2 p-2 bg-black/70 hover:bg-black/90 rounded-full text-white"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <div
+                onClick={() => cigaretteImageInputRef.current?.click()}
+                className="w-full h-64 border-2 border-dashed border-zinc-700 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-zinc-600 transition-colors"
+              >
+                <Camera size={48} className="text-zinc-500 mb-2" />
+                <p className="text-sm text-zinc-400">Click to upload cigarette image</p>
+                <p className="text-xs text-zinc-500 mt-1">Upload your cigarette pack photo</p>
+              </div>
+            )}
+            <input
+              ref={cigaretteImageInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleCigaretteImageUpload}
+              className="hidden"
+              required
+            />
+          </div>
+          
+          <div className="flex gap-2">
+            <Button type="submit" className="flex-1" disabled={!newCigaretteImage}>
+              Add Cigarette
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setIsCigaretteModalOpen(false);
+                setNewCigaretteImage(null);
+                setNewCigaretteImagePreview(null);
               }}
             >
               Cancel

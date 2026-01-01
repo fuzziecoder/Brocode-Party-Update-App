@@ -7,10 +7,11 @@ import Input from '../components/common/Input';
 import Button from '../components/common/Button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff, Smartphone, User, AtSign, ChevronLeft, AlertCircle } from 'lucide-react';
-import { mockApi } from '../services/mockApi';
+import { mockApi, DEFAULT_AVATARS } from '../services/mockApi';
 import OtpInput from '../components/common/OtpInput';
-import AvatarPicker from '../components/common/AvatarPicker';
 import PasswordStrength from '../components/common/PasswordStrength';
+import { profileService } from '../services/database';
+import { supabase } from '../services/supabase';
 
 type FormData = {
   loginPassword: string;
@@ -20,9 +21,8 @@ type FormData = {
   resetEmail: string;
   loginMobile: string;
   mobileNumber: string;
-  name: string;
+  email: string;
   username: string;
-  profile_pic_url: string;
 };
 
 const formatMobile = (val: string) => {
@@ -40,7 +40,7 @@ const LoginPage: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
   
   const [authMethod, setAuthMethod] = useState<'email' | 'mobile'>('email');
-  const [view, setView] = useState<'login' | 'forgot' | 'reset' | 'mobile-register' | 'mobile-verify' | 'mobile-setup'>('login');
+  const [view, setView] = useState<'login' | 'forgot' | 'reset' | 'mobile-register' | 'mobile-setup'>('login');
 
   const [formData, setFormData] = useState<FormData>({
     loginEmail: '',
@@ -50,9 +50,8 @@ const LoginPage: React.FC = () => {
     mobileNumber: '',
     otp: '',
     newPassword: '',
-    name: '',
+    email: '',
     username: '',
-    profile_pic_url: '',
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
@@ -103,8 +102,9 @@ const LoginPage: React.FC = () => {
         if (!value) error = 'Code is required';
         else if (value.length !== 6) error = 'Enter 6 digits';
         break;
-      case 'name':
-        if (!value.trim()) error = 'Name is required';
+      case 'email':
+        if (!value) error = 'Email is required';
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) error = 'Invalid email format';
         break;
       case 'username':
         if (!value.trim()) error = 'Username is required';
@@ -143,7 +143,8 @@ const LoginPage: React.FC = () => {
     if (!isValid) { setErrors(newErrors); return; }
 
     setLoading(true);
-    const identifier = authMethod === 'email' ? formData.loginEmail : formData.loginMobile;
+    // Strip formatting from phone number for login
+    let identifier = authMethod === 'email' ? formData.loginEmail : formData.loginMobile.replace(/\D/g, '');
     try {
       await login(identifier, formData.loginPassword);
       navigate('/dashboard/home');
@@ -184,6 +185,83 @@ const LoginPage: React.FC = () => {
       setTimeout(() => setView('login'), 2000);
     } catch (err: any) {
       setApiError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMobileRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    clearMessages();
+    const err = validateField('mobileNumber', formData.mobileNumber);
+    if (err) { setErrors({ mobileNumber: err }); return; }
+    setLoading(true);
+    try {
+      // Check if user already exists
+      const phoneDigits = formData.mobileNumber.replace(/\D/g, '');
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('phone', phoneDigits)
+        .single();
+      
+      if (existing) {
+        setApiError('Account already exists. Please login instead.');
+        setTimeout(() => setView('login'), 2000);
+        return;
+      }
+
+      // Go directly to setup form
+      setView('mobile-setup');
+    } catch (err: any) {
+      // If user doesn't exist, proceed to setup
+      setView('mobile-setup');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMobileSetup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    clearMessages();
+    const e1 = validateField('email', formData.email);
+    const e2 = validateField('username', formData.username);
+    const e3 = validateField('newPassword', formData.newPassword);
+    if (e1 || e2 || e3) { setErrors({ email: e1, username: e2, newPassword: e3 }); return; }
+
+    // Check username uniqueness
+    try {
+      const isUnique = await profileService.isUsernameUnique(formData.username.trim());
+      if (!isUnique) {
+        setErrors({ username: 'Username already taken' });
+        return;
+      }
+    } catch (err: any) {
+      setApiError('Error checking username. Please try again.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const phoneDigits = formData.mobileNumber.replace(/\D/g, '');
+      // Generate name from username (capitalize first letter)
+      const name = formData.username.trim().charAt(0).toUpperCase() + formData.username.trim().slice(1);
+      const newProfile = await profileService.createProfile({
+        name: name,
+        username: formData.username.trim(),
+        phone: phoneDigits,
+        email: formData.email.trim(),
+        password: formData.newPassword,
+        profile_pic_url: DEFAULT_AVATARS[Math.floor(Math.random() * DEFAULT_AVATARS.length)],
+        role: 'user',
+      });
+
+      // Auto-login after registration
+      await login(phoneDigits, formData.newPassword);
+      setSuccess('Account created! Welcome to the squad.');
+      setTimeout(() => navigate('/dashboard/home'), 1500);
+    } catch (err: any) {
+      setApiError(err.message || 'Failed to create account.');
     } finally {
       setLoading(false);
     }
@@ -258,8 +336,32 @@ const LoginPage: React.FC = () => {
                 </form>
               </motion.div>
             )}
-            
-            {/* ... Other registration views simplified for brevity ... */}
+
+            {view === 'mobile-register' && (
+              <motion.div key="mobile-register" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }}>
+                <button onClick={() => setView('login')} className="flex items-center text-zinc-500 hover:text-white mb-6 transition-colors"><ChevronLeft size={16} /><span className="text-[10px] font-black uppercase tracking-widest ml-1">Back</span></button>
+                <h1 className="text-3xl font-black text-white tracking-tighter mb-8">JOIN SQUAD</h1>
+                <form className="space-y-6" onSubmit={handleMobileRegister} noValidate>
+                  <Input name="mobileNumber" label="Phone Number" type="tel" value={formData.mobileNumber} onChange={handleChange} error={errors.mobileNumber} icon={<Smartphone size={16}/>} placeholder="(000) 000-0000"/>
+                  <Button type="submit" className="w-full py-4 uppercase tracking-widest font-black" disabled={loading}>Send Code</Button>
+                </form>
+              </motion.div>
+            )}
+
+            {view === 'mobile-setup' && (
+              <motion.div key="mobile-setup" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }}>
+                <h1 className="text-3xl font-black text-white tracking-tighter mb-8">SETUP</h1>
+                <form className="space-y-6" onSubmit={handleMobileSetup} noValidate>
+                  <Input name="email" label="Email Address" type="email" value={formData.email} onChange={handleChange} error={errors.email} icon={<Mail size={16}/>} placeholder="john@doe.com"/>
+                  <Input name="username" label="Username" type="text" value={formData.username} onChange={handleChange} error={errors.username} icon={<AtSign size={16}/>} placeholder="johndoe"/>
+                  <div className="space-y-3">
+                    <Input name="newPassword" label="Password" type="password" value={formData.newPassword} onChange={handleChange} error={errors.newPassword} icon={<Lock size={16}/>}/>
+                    <PasswordStrength password={formData.newPassword} />
+                  </div>
+                  <Button type="submit" className="w-full py-4 uppercase tracking-widest font-black" disabled={loading}>Create Account</Button>
+                </form>
+              </motion.div>
+            )}
           </AnimatePresence>
           
           <AnimatePresence>

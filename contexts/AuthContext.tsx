@@ -58,11 +58,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
 
     try {
+      // Strip formatting from phone number if it looks like a phone
+      const cleanIdentifier = identifier.replace(/\D/g, '').length === 10 ? identifier.replace(/\D/g, '') : identifier;
+      
       // First try to get profile from Supabase
       const { data: profiles, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .or(`email.eq.${identifier},phone.eq.${identifier},username.eq.${identifier}`)
+        .or(`email.eq.${identifier},phone.eq.${cleanIdentifier},username.eq.${identifier}`)
         .eq('password', password)
         .single();
 
@@ -95,10 +98,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // If using mockApi, try to find the UUID in Supabase
     try {
+      const cleanIdentifier = identifier.replace(/\D/g, '').length === 10 ? identifier.replace(/\D/g, '') : identifier;
       const { data: dbProfile } = await supabase
         .from('profiles')
         .select('id')
-        .or(`email.eq.${identifier},phone.eq.${identifier},username.eq.${identifier}`)
+        .or(`email.eq.${identifier},phone.eq.${cleanIdentifier},username.eq.${identifier}`)
         .single();
 
       if (dbProfile) {
@@ -142,10 +146,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       // If user.id is not a UUID, try to find it in database
       if (!userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        const cleanPhone = profile?.phone ? profile.phone.replace(/\D/g, '') : '';
         const { data: dbProfile } = await supabase
           .from('profiles')
           .select('id')
-          .or(`email.eq.${profile?.email || ''},phone.eq.${profile?.phone || ''},username.eq.${profile?.username || ''}`)
+          .or(`email.eq.${profile?.email || ''},phone.eq.${cleanPhone},username.eq.${profile?.username || ''}`)
           .single();
         
         if (dbProfile) {

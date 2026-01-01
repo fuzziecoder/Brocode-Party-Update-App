@@ -73,7 +73,36 @@ CREATE POLICY "Users can update drinks" ON drinks FOR UPDATE USING (true);
 CREATE POLICY "Users can delete drinks" ON drinks FOR DELETE USING (true);
 
 -- ============================================================================
--- 4. FUNCTION TO UPDATE MISSION_COUNT WHEN ATTENDANCE IS CONFIRMED
+-- 4. CREATE CIGARETTES TABLE
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS cigarettes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  spot_id UUID NOT NULL REFERENCES spots(id) ON DELETE CASCADE,
+  image_url TEXT NOT NULL,
+  added_by UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS cigarettes_spot_id_idx ON cigarettes(spot_id);
+CREATE INDEX IF NOT EXISTS cigarettes_added_by_idx ON cigarettes(added_by);
+ALTER TABLE cigarettes ENABLE ROW LEVEL SECURITY;
+
+-- Drop all possible cigarettes policies
+DO $$ 
+BEGIN
+  DROP POLICY IF EXISTS "Everyone can read cigarettes" ON cigarettes;
+  DROP POLICY IF EXISTS "Users can create cigarettes" ON cigarettes;
+  DROP POLICY IF EXISTS "Users can delete cigarettes" ON cigarettes;
+END $$;
+
+CREATE POLICY "Everyone can read cigarettes" ON cigarettes FOR SELECT USING (true);
+CREATE POLICY "Users can create cigarettes" ON cigarettes FOR INSERT WITH CHECK (true);
+CREATE POLICY "Users can delete cigarettes" ON cigarettes FOR DELETE USING (true);
+
+-- ============================================================================
+-- 5. FUNCTION TO UPDATE MISSION_COUNT WHEN ATTENDANCE IS CONFIRMED
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION update_mission_count_on_attendance()

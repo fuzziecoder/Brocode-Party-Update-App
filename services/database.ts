@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Spot, Invitation, Payment, InvitationStatus, PaymentStatus, UserProfile, Drink, Attendance } from '../types';
+import { Spot, Invitation, Payment, InvitationStatus, PaymentStatus, UserProfile, Drink, Attendance, Cigarette } from '../types';
 
 /* -------------------------------------------------------------------------- */
 /* SPOTS */
@@ -452,6 +452,40 @@ export const profileService = {
 
     return data;
   },
+
+  // Create new profile
+  async createProfile(profileData: {
+    name: string;
+    username: string;
+    phone: string;
+    email?: string;
+    password: string;
+    profile_pic_url?: string;
+    role?: string;
+  }): Promise<UserProfile> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .insert({
+        name: profileData.name,
+        username: profileData.username,
+        phone: profileData.phone,
+        email: profileData.email,
+        password: profileData.password,
+        profile_pic_url: profileData.profile_pic_url || 'https://api.dicebear.com/7.x/thumbs/svg?seed=default',
+        role: profileData.role || 'user',
+        location: 'Broville',
+        is_verified: true,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating profile:', error);
+      throw error;
+    }
+
+    return data;
+  },
 };
 
 /* -------------------------------------------------------------------------- */
@@ -601,6 +635,91 @@ export const drinkService = {
 
     if (error) {
       console.error('Error deleting drink:', error);
+      throw error;
+    }
+  },
+};
+
+/* -------------------------------------------------------------------------- */
+/* CIGARETTES */
+/* -------------------------------------------------------------------------- */
+
+export const cigaretteService = {
+  // Get cigarettes for a spot
+  async getCigarettes(spotId: string): Promise<Cigarette[]> {
+    const { data, error } = await supabase
+      .from('cigarettes')
+      .select(`
+        *,
+        profiles:added_by (
+          name,
+          profile_pic_url
+        )
+      `)
+      .eq('spot_id', spotId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching cigarettes:', error);
+      throw error;
+    }
+
+    return data.map((cig: any) => ({
+      id: cig.id,
+      spot_id: cig.spot_id,
+      image_url: cig.image_url,
+      added_by: cig.added_by,
+      created_at: cig.created_at,
+      profiles: cig.profiles,
+    }));
+  },
+
+  // Create a cigarette
+  async createCigarette(cigaretteData: {
+    spot_id: string;
+    image_url: string;
+    added_by: string;
+  }): Promise<Cigarette> {
+    const { data, error } = await supabase
+      .from('cigarettes')
+      .insert({
+        spot_id: cigaretteData.spot_id,
+        image_url: cigaretteData.image_url,
+        added_by: cigaretteData.added_by,
+      })
+      .select(`
+        *,
+        profiles:added_by (
+          name,
+          profile_pic_url
+        )
+      `)
+      .single();
+
+    if (error) {
+      console.error('Error creating cigarette:', error);
+      throw error;
+    }
+
+    return {
+      id: data.id,
+      spot_id: data.spot_id,
+      image_url: data.image_url,
+      added_by: data.added_by,
+      created_at: data.created_at,
+      profiles: data.profiles,
+    };
+  },
+
+  // Delete a cigarette
+  async deleteCigarette(cigaretteId: string): Promise<void> {
+    const { error } = await supabase
+      .from('cigarettes')
+      .delete()
+      .eq('id', cigaretteId);
+
+    if (error) {
+      console.error('Error deleting cigarette:', error);
       throw error;
     }
   },
