@@ -206,10 +206,10 @@ INSERT INTO profiles (id, name, username, email, phone, password, role, location
 VALUES (
   '00000000-0000-0000-0000-000000000001',
   'Ram',
-  'ramvj2005',
-  'ramvj2005@gmail.com',
+  'brocode',
+  'brocode@gmail.com',
   '7826821130',
-  'ramkumar',
+  'admin@brocode',
   'admin',
   'Attibele',
   true
@@ -225,16 +225,16 @@ ON CONFLICT (id) DO UPDATE SET
   is_verified = EXCLUDED.is_verified;
 
 -- Insert other users
-INSERT INTO profiles (id, name, username, phone, role, location, is_verified)
+INSERT INTO profiles (id, name, username, phone, password, role, location, is_verified)
 VALUES 
-  ('00000000-0000-0000-0000-000000000002', 'Dhanush', 'dhanush', '9994323520', 'user', 'Attibele', true),
-  ('00000000-0000-0000-0000-000000000003', 'Godwin', 'godwin', '8903955341', 'user', 'Attibele', true),
-  ('00000000-0000-0000-0000-000000000004', 'Tharun', 'tharun', '9345624112', 'user', 'Attibele', true),
-  ('00000000-0000-0000-0000-000000000005', 'Sanjay', 'sanjay', '9865703667', 'user', 'Attibele', true),
-  ('00000000-0000-0000-0000-000000000006', 'Soundar', 'soundar', '9566686921', 'user', 'Attibele', true),
-  ('00000000-0000-0000-0000-000000000007', 'Jagadeesh', 'jagadeesh', '6381038172', 'user', 'Attibele', true),
-  ('00000000-0000-0000-0000-000000000008', 'Ram', 'ram', '7826821130', 'user', 'Attibele', true),
-  ('00000000-0000-0000-0000-000000000009', 'Lingesh', 'lingesh', '', 'user', 'Attibele', true)
+  ('00000000-0000-0000-0000-000000000002', 'Dhanush', 'dhanush', '9994323520', 'dhanush123', 'user', 'Attibele', true),
+  ('00000000-0000-0000-0000-000000000003', 'Godwin', 'godwin', '8903955341', 'godwin123', 'user', 'Attibele', true),
+  ('00000000-0000-0000-0000-000000000004', 'Tharun', 'tharun', '9345624112', 'tharun123', 'user', 'Attibele', true),
+  ('00000000-0000-0000-0000-000000000005', 'Sanjay', 'sanjay', '9865703667', 'sanjay123', 'user', 'Attibele', true),
+  ('00000000-0000-0000-0000-000000000006', 'Soundar', 'soundar', '9566686921', 'soundar123', 'user', 'Attibele', true),
+  ('00000000-0000-0000-0000-000000000007', 'Jagadeesh', 'jagadeesh', '6381038172', 'jagadeesh123', 'user', 'Attibele', true),
+  ('00000000-0000-0000-0000-000000000008', 'Ram', 'ram', '7826821130', 'ram123', 'user', 'Attibele', true),
+  ('00000000-0000-0000-0000-000000000009', 'Lingesh', 'lingesh', '', 'lingesh123', 'user', 'Attibele', true)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   username = EXCLUDED.username,

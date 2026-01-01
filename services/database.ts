@@ -8,7 +8,8 @@ import { Spot, Invitation, Payment, InvitationStatus, PaymentStatus, UserProfile
 export const spotService = {
   // Get upcoming spot (date >= today)
   async getUpcomingSpot(): Promise<Spot | null> {
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
     
     const { data, error } = await supabase
       .from('spots')
@@ -16,7 +17,7 @@ export const spotService = {
       .gte('date', today)
       .order('date', { ascending: true })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (error) {
       if (error.code === 'PGRST116') {
@@ -245,12 +246,15 @@ export const invitationService = {
   ): Promise<void> {
     const { error } = await supabase
       .from('invitations')
-      .update({ status })
+      .update({ 
+        status,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', invitationId);
 
     if (error) {
       console.error('Error updating invitation status:', error);
-      throw error;
+      throw new Error(`Failed to update RSVP: ${error.message}`);
     }
   },
 

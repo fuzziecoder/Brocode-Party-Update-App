@@ -236,7 +236,9 @@ const HomePage: React.FC = () => {
         latitude: 37.7749,
         longitude: -122.4194,
       });
-      fetchData();
+      
+      // Refresh data to show the new spot
+      await fetchData();
     } catch (error: any) {
       console.error("Failed to create spot:", error);
       if (error.message?.includes('does not exist') || error.message?.includes('relation')) {
@@ -257,10 +259,11 @@ const HomePage: React.FC = () => {
   ) => {
     try {
       await invitationService.updateInvitationStatus(invitationId, status);
-      // Real-time subscription will update the UI automatically
-    } catch (error) {
+      // Refresh data to show updated status immediately
+      await fetchData();
+    } catch (error: any) {
       console.error("Failed to update RSVP:", error);
-      alert("Failed to update RSVP. Please try again.");
+      alert(`Failed to update RSVP: ${error.message || 'Please try again.'}`);
     }
   };
 
@@ -331,6 +334,33 @@ const HomePage: React.FC = () => {
             <Card className="p-20 text-center">No Active Spot</Card>
           ) : (
             <>
+              {/* SPOT DETAILS */}
+              <Card>
+                <div className="space-y-4">
+                  <div>
+                    <h2 className="text-2xl font-bold text-indigo-400 mb-2">{spot.location}</h2>
+                    <p className="text-zinc-400">
+                      {new Date(spot.date).toLocaleDateString('en-US', { 
+                        weekday: 'long', 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })} at {spot.timing}
+                    </p>
+                  </div>
+                  {spot.description && (
+                    <div>
+                      <h3 className="text-sm font-bold text-zinc-500 uppercase mb-2">Description</h3>
+                      <p className="text-zinc-300">{spot.description}</p>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="text-zinc-400">Budget:</span>
+                    <span className="font-bold text-white">${spot.budget} / person</span>
+                  </div>
+                </div>
+              </Card>
+
               <Card className="h-[350px] p-0 overflow-hidden">
                 <div ref={mapRef} className="w-full h-full" />
               </Card>
