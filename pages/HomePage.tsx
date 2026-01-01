@@ -31,6 +31,16 @@ const HomePage: React.FC = () => {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateSpotModalOpen, setCreateSpotModalOpen] = useState(false);
+  const [isEditSpotModalOpen, setIsEditSpotModalOpen] = useState(false);
+  const [editingSpot, setEditingSpot] = useState<Spot | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    location: '',
+    date: '',
+    timing: '',
+    budget: '',
+    description: '',
+    feedback: '',
+  });
   const [dbSetupError, setDbSetupError] = useState<string | null>(null);
 
   const [newSpotData, setNewSpotData] = useState({
@@ -277,10 +287,57 @@ const HomePage: React.FC = () => {
         user_id: profile.id,
         status,
       });
-      // Real-time subscription will update the UI automatically
-    } catch (error) {
+      // Refresh data to show updated status
+      await fetchData();
+    } catch (error: any) {
       console.error("Failed to create RSVP:", error);
-      alert("Failed to create RSVP. Please try again.");
+      alert(`Failed to create RSVP: ${error.message || 'Please try again.'}`);
+    }
+  };
+
+  // Handle spot update
+  const handleUpdateSpot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSpot || !profile) return;
+
+    try {
+      let userId = profile.id;
+      if (!userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        const { data: dbProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .or(`email.eq.${profile.email},phone.eq.${profile.phone},username.eq.${profile.username}`)
+          .single();
+        if (dbProfile) userId = dbProfile.id;
+      }
+
+      await spotService.updateSpot(editingSpot.id, {
+        location: editFormData.location,
+        date: editFormData.date,
+        timing: editFormData.timing,
+        budget: Number(editFormData.budget),
+        description: editFormData.description,
+        feedback: editFormData.feedback,
+        day: new Date(editFormData.date).toLocaleDateString('en-US', { weekday: 'long' }),
+      });
+
+      setIsEditSpotModalOpen(false);
+      setEditingSpot(null);
+      await fetchData();
+      notify("Spot Updated", "Spot details have been updated successfully");
+    } catch (error: any) {
+      alert(`Failed to update spot: ${error.message || 'Please try again.'}`);
+    }
+  };
+
+  // Handle spot delete
+  const handleDeleteSpot = async (spotId: string) => {
+    try {
+      await spotService.deleteSpot(spotId);
+      await fetchData();
+      notify("Spot Deleted", "Spot has been deleted successfully");
+    } catch (error: any) {
+      alert(`Failed to delete spot: ${error.message || 'Please try again.'}`);
     }
   };
 
@@ -337,16 +394,51 @@ const HomePage: React.FC = () => {
               {/* SPOT DETAILS */}
               <Card>
                 <div className="space-y-4">
-                  <div>
-                    <h2 className="text-2xl font-bold text-indigo-400 mb-2">{spot.location}</h2>
-                    <p className="text-zinc-400">
-                      {new Date(spot.date).toLocaleDateString('en-US', { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })} at {spot.timing}
-                    </p>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h2 className="text-2xl font-bold text-indigo-400 mb-2">{spot.location}</h2>
+                      <p className="text-zinc-400">
+                        {new Date(spot.date).toLocaleDateString('en-US', { 
+                          weekday: 'long', 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })} at {spot.timing}
+                      </p>
+                    </div>
+                    {isAdmin && (
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            setEditingSpot(spot);
+                            setEditFormData({
+                              location: spot.location,
+                              date: spot.date.split('T')[0],
+                              timing: spot.timing,
+                              budget: spot.budget.toString(),
+                              description: spot.description || '',
+                              feedback: spot.feedback || '',
+                            });
+                            setIsEditSpotModalOpen(true);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            if (confirm('Are you sure you want to delete this spot?')) {
+                              handleDeleteSpot(spot.id);
+                            }
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    )}
                   </div>
                   {spot.description && (
                     <div>
@@ -361,26 +453,27 @@ const HomePage: React.FC = () => {
                 </div>
               </Card>
 
-              <Card className="h-[350px] p-0 overflow-hidden">
+              <Card className="h-[250px] md:h-[350px] p-0 overflow-hidden">
                 <div ref={mapRef} className="w-full h-full" />
               </Card>
 
               {/* RSVP CONFIRMATION SECTION */}
-              <Card>
-                <h2 className="text-lg font-bold mb-4">Confirm Your Attendance</h2>
-                <p className="text-sm text-zinc-400 mb-4">
+              <Card className="p-4 md:p-6">
+                <h2 className="text-base md:text-lg font-bold mb-3 md:mb-4">Confirm Your Attendance</h2>
+                <p className="text-xs md:text-sm text-zinc-400 mb-4">
                   Let us know if you're coming to this spot!
                 </p>
 
                 {myInvitation ? (
                   <div className="space-y-4">
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         size="sm"
                         onClick={() =>
                           handleRSVP(myInvitation.id, InvitationStatus.CONFIRMED)
                         }
                         variant={myInvitation.status === InvitationStatus.CONFIRMED ? "default" : "secondary"}
+                        className="flex-1 min-w-[100px] text-xs md:text-sm"
                       >
                         ✓ Confirm
                       </Button>
@@ -390,6 +483,7 @@ const HomePage: React.FC = () => {
                         onClick={() =>
                           handleRSVP(myInvitation.id, InvitationStatus.DECLINED)
                         }
+                        className="flex-1 min-w-[100px] text-xs md:text-sm"
                       >
                         ✗ Not Interested
                       </Button>
@@ -399,6 +493,7 @@ const HomePage: React.FC = () => {
                         onClick={() =>
                           handleRSVP(myInvitation.id, InvitationStatus.PENDING)
                         }
+                        className="flex-1 min-w-[100px] text-xs md:text-sm"
                       >
                         ⏳ Waitlist
                       </Button>
@@ -408,10 +503,11 @@ const HomePage: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       size="sm"
                       onClick={() => handleCreateRSVP(InvitationStatus.CONFIRMED)}
+                      className="flex-1 min-w-[100px] text-xs md:text-sm"
                     >
                       ✓ Confirm
                     </Button>
@@ -419,6 +515,7 @@ const HomePage: React.FC = () => {
                       size="sm"
                       variant="secondary"
                       onClick={() => handleCreateRSVP(InvitationStatus.DECLINED)}
+                      className="flex-1 min-w-[100px] text-xs md:text-sm"
                     >
                       ✗ Not Interested
                     </Button>
@@ -426,6 +523,7 @@ const HomePage: React.FC = () => {
                       size="sm"
                       variant="secondary"
                       onClick={() => handleCreateRSVP(InvitationStatus.PENDING)}
+                      className="flex-1 min-w-[100px] text-xs md:text-sm"
                     >
                       ⏳ Waitlist
                     </Button>
@@ -434,36 +532,36 @@ const HomePage: React.FC = () => {
               </Card>
 
               {/* RSVP STATUS - REAL-TIME UPDATES */}
-              <Card>
-                <h2 className="text-lg font-bold mb-4">Who's Coming? ({invitations.filter(i => i.status === InvitationStatus.CONFIRMED).length})</h2>
+              <Card className="p-4 md:p-6">
+                <h2 className="text-base md:text-lg font-bold mb-4">Who's Coming? ({invitations.filter(i => i.status === InvitationStatus.CONFIRMED).length})</h2>
                 
                 <div className="space-y-3">
                   {invitations
                     .sort((a, b) => {
                       // Sort: Confirmed first, then Pending, then Declined
-                      const statusOrder = { confirmed: 0, pending: 1, declined: 2 };
-                      return statusOrder[a.status] - statusOrder[b.status];
+                      const statusOrder: Record<string, number> = { confirmed: 0, pending: 1, declined: 2 };
+                      return (statusOrder[a.status] || 1) - (statusOrder[b.status] || 1);
                     })
                     .map((inv) => (
                       <div
                         key={inv.id}
-                        className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-white/5"
+                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-zinc-900/50 rounded-lg border border-white/5"
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
                           <img
                             src={inv.profiles.profile_pic_url || "https://api.dicebear.com/7.x/thumbs/svg?seed=default"}
                             alt={inv.profiles.name}
-                            className="w-10 h-10 rounded-full border border-white/10"
+                            className="w-10 h-10 rounded-full border border-white/10 flex-shrink-0"
                           />
-                          <div>
-                            <span className="font-medium text-sm">{inv.profiles.name}</span>
-                            <div className="text-xs text-zinc-500">
+                          <div className="min-w-0">
+                            <span className="font-medium text-sm md:text-base block truncate">{inv.profiles.name}</span>
+                            <div className="text-xs text-zinc-500 truncate">
                               @{inv.profiles.username}
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <span className={`px-2 md:px-3 py-1 rounded-full text-xs font-bold uppercase whitespace-nowrap ${
                             inv.status === InvitationStatus.CONFIRMED
                               ? 'bg-green-500/20 text-green-400 border border-green-500/30'
                               : inv.status === InvitationStatus.PENDING
@@ -539,6 +637,69 @@ const HomePage: React.FC = () => {
           <Button type="submit" className="w-full">
             Create Spot
           </Button>
+        </form>
+      </Modal>
+
+      {/* EDIT SPOT MODAL */}
+      <Modal
+        isOpen={isEditSpotModalOpen}
+        onClose={() => {
+          setIsEditSpotModalOpen(false);
+          setEditingSpot(null);
+        }}
+        title="Edit Spot"
+      >
+        <form onSubmit={handleUpdateSpot} className="space-y-4">
+          <Input
+            label="Location"
+            value={editFormData.location}
+            onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
+            required
+          />
+          <Input
+            type="date"
+            label="Date"
+            value={editFormData.date}
+            onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })}
+            required
+          />
+          <Input
+            type="time"
+            label="Time"
+            value={editFormData.timing}
+            onChange={(e) => setEditFormData({ ...editFormData, timing: e.target.value })}
+            required
+          />
+          <Input
+            type="number"
+            label="Budget"
+            value={editFormData.budget}
+            onChange={(e) => setEditFormData({ ...editFormData, budget: e.target.value })}
+            required
+          />
+          <Textarea
+            label="Description"
+            value={editFormData.description}
+            onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+          />
+          <Textarea
+            label="Admin Feedback"
+            value={editFormData.feedback}
+            onChange={(e) => setEditFormData({ ...editFormData, feedback: e.target.value })}
+          />
+          <div className="flex gap-2">
+            <Button type="submit" className="flex-1">Update Spot</Button>
+            <Button 
+              type="button" 
+              variant="secondary"
+              onClick={() => {
+                setIsEditSpotModalOpen(false);
+                setEditingSpot(null);
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
         </form>
       </Modal>
     </div>

@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../hooks/useAuth";
-import { UserRole, Spot } from "../types";
+import { UserRole, Spot, Payment, PaymentStatus } from "../types";
 import Card from "../components/common/Card";
 import Button from "../components/common/Button";
 import { QRCodeCanvas } from "qrcode.react";
-import { usePayments } from "../contexts/PaymentContext";
-import { mockApi } from "../services/mockApi";
+import { spotService, paymentService } from "../services/database";
+import { supabase } from "../services/supabase";
 
 /* -------------------------------------------------------------------------- */
 /* Status Badge */
@@ -29,19 +29,42 @@ const PaymentStatusBadge: React.FC<{ paid: boolean }> = ({ paid }) => (
 
 const PaymentPage: React.FC = () => {
   const { profile } = useAuth();
-  const { payments, markPaid, undoPaid } = usePayments();
-
   const [spot, setSpot] = useState<Spot | null>(null);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const loadSpot = async () => {
-      const data = await mockApi.getUpcomingSpot();
-      setSpot(data ?? null);
+  const fetchData = useCallback(async () => {
+    try {
+      const spotData = await spotService.getUpcomingSpot();
+      setSpot(spotData);
+
+      if (spotData) {
+        const paymentData = await paymentService.getPayments(spotData.id);
+        setPayments(paymentData);
+      } else {
+        setPayments([]);
+      }
+    } catch (error) {
+      console.error("Error loading payment data:", error);
+    } finally {
       setLoading(false);
-    };
-    loadSpot();
+    }
   }, []);
+
+  useEffect(() => {
+    fetchData();
+
+    // Set up real-time subscription for payments
+    if (spot) {
+      const channel = paymentService.subscribeToPayments(spot.id, (payload) => {
+        fetchData();
+      });
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [fetchData, spot?.id]);
 
   if (loading) {
     return <div className="p-8 text-center">Loading payments...</div>;
@@ -58,15 +81,9 @@ const PaymentPage: React.FC = () => {
   }
 
   const isAdmin = profile?.role === UserRole.ADMIN;
-  const members = spot.members ?? [];
-
-  /* ------------------------------------------------------------------------ */
-  /* UPI CONFIG */
-  /* ------------------------------------------------------------------------ */
-
   const amount = spot.budget;
-  const payeeVPA = "adminbro@upi"; // change to your real UPI ID
-  const payeeName = "Admin Bro";
+  const payeeVPA = "godw1921-1@okicici";
+  const payeeName = "BroCode Admin";
 
   const baseUpi = `upi://pay?pa=${payeeVPA}&pn=${encodeURIComponent(
     payeeName
@@ -74,60 +91,126 @@ const PaymentPage: React.FC = () => {
 
   const openUPI = (app: "gpay" | "phonepe" | "paytm" | "navi") => {
     let url = baseUpi;
-
     if (app === "gpay") url = `tez://upi/pay?${baseUpi.split("?")[1]}`;
     if (app === "phonepe") url = `phonepe://pay?${baseUpi.split("?")[1]}`;
     if (app === "paytm") url = `paytmmp://pay?${baseUpi.split("?")[1]}`;
     if (app === "navi") url = `navi://pay?${baseUpi.split("?")[1]}`;
-
     window.location.href = url;
   };
 
+  const handleMarkPaid = async (paymentId: string) => {
+    if (!isAdmin) return;
+    try {
+      await paymentService.updatePaymentStatus(paymentId, PaymentStatus.PAID);
+      await fetchData();
+    } catch (error: any) {
+      alert(`Failed to update payment: ${error.message || 'Please try again.'}`);
+    }
+  };
+
+  const handleMarkUnpaid = async (paymentId: string) => {
+    if (!isAdmin) return;
+    try {
+      await paymentService.updatePaymentStatus(paymentId, PaymentStatus.NOT_PAID);
+      await fetchData();
+    } catch (error: any) {
+      alert(`Failed to update payment: ${error.message || 'Please try again.'}`);
+    }
+  };
+
   return (
-    <div className="space-y-8 pb-20">
-      <h1 className="text-3xl font-bold">Payment</h1>
+    <div className="space-y-6 md:space-y-8 pb-20 max-w-6xl mx-auto px-4">
+      <h1 className="text-2xl md:text-3xl font-bold">Payment</h1>
 
-      <div className="grid md:grid-cols-2 gap-8">
+      <div className="grid md:grid-cols-2 gap-6 md:gap-8">
         {/* ---------------- SCAN TO PAY ---------------- */}
-        <Card className="flex flex-col items-center text-center">
-          <h2 className="text-xl font-semibold mb-4">Scan to Pay</h2>
+        <Card className="flex flex-col items-center text-center p-4 md:p-6">
+          <h2 className="text-lg md:text-xl font-semibold mb-4">Scan to Pay</h2>
 
-          <div className="bg-white p-4 rounded-xl">
-            <QRCodeCanvas value={baseUpi} size={200} />
+          <div className="bg-white p-3 md:p-4 rounded-xl w-full max-w-[280px] flex items-center justify-center min-h-[250px]">
+            <img 
+              src="/images/payment-qr.png" 
+              alt="Payment QR Code" 
+              className="w-full h-auto max-w-[250px]"
+              onError={(e) => {
+                // If image doesn't exist, show a placeholder with UPI ID
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                const container = target.parentElement;
+                if (container && !container.querySelector('.qr-placeholder')) {
+                  const placeholder = document.createElement('div');
+                  placeholder.className = 'qr-placeholder w-full p-4 text-center';
+                  placeholder.innerHTML = `
+                    <div class="text-gray-600 text-sm mb-2">QR Code Image</div>
+                    <div class="text-gray-400 text-xs break-all">${payeeVPA}</div>
+                    <div class="text-gray-500 text-xs mt-2">Add payment-qr.png to /public/images/</div>
+                  `;
+                  container.appendChild(placeholder);
+                }
+              }}
+            />
           </div>
 
-          <p className="mt-3 text-sm text-gray-400">
+          <p className="mt-3 text-sm md:text-base text-gray-400 font-semibold">
             Amount: ₹{amount}
+          </p>
+          <p className="mt-1 text-xs text-gray-500 break-all px-4">
+            UPI ID: {payeeVPA}
           </p>
 
           {/* UPI APP BUTTONS */}
-          <div className="grid grid-cols-2 gap-3 mt-5 w-full">
-            <Button onClick={() => openUPI("gpay")}>Google Pay</Button>
-            <Button onClick={() => openUPI("phonepe")}>PhonePe</Button>
-            <Button onClick={() => openUPI("paytm")}>Paytm</Button>
-            <Button onClick={() => openUPI("navi")}>Navi</Button>
+          <div className="grid grid-cols-2 gap-2 md:gap-3 mt-5 w-full">
+            <Button 
+              size="sm"
+              onClick={() => openUPI("gpay")}
+              className="text-xs md:text-sm py-2"
+            >
+              Google Pay
+            </Button>
+            <Button 
+              size="sm"
+              onClick={() => openUPI("phonepe")}
+              className="text-xs md:text-sm py-2"
+            >
+              PhonePe
+            </Button>
+            <Button 
+              size="sm"
+              onClick={() => openUPI("paytm")}
+              className="text-xs md:text-sm py-2"
+            >
+              Paytm
+            </Button>
+            <Button 
+              size="sm"
+              onClick={() => openUPI("navi")}
+              className="text-xs md:text-sm py-2"
+            >
+              Navi
+            </Button>
           </div>
         </Card>
 
         {/* ---------------- PAYMENT BREAKDOWN ---------------- */}
-        <Card>
-          <h2 className="text-xl font-semibold mb-4">
+        <Card className="p-4 md:p-6">
+          <h2 className="text-lg md:text-xl font-semibold mb-4">
             Payment Breakdown
           </h2>
 
-          {members.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center">
-              No members found.
+          {payments.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">
+              No payments found.
             </p>
           ) : (
             <div className="space-y-3">
-              {members.map((member) => {
-                const paid = payments[member.id]?.paid ?? false;
+              {payments.map((payment) => {
+                const isPaid = payment.status === PaymentStatus.PAID;
+                const member = payment.profiles;
 
                 return (
                   <div
-                    key={member.id}
-                    className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg"
+                    key={payment.id}
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-zinc-800/50 rounded-lg border border-white/5"
                   >
                     <div className="flex items-center gap-3">
                       <img
@@ -136,33 +219,42 @@ const PaymentPage: React.FC = () => {
                           "https://api.dicebear.com/7.x/thumbs/svg?seed=user"
                         }
                         alt={member.name}
-                        className="w-10 h-10 rounded-full"
+                        className="w-10 h-10 rounded-full border border-white/10 flex-shrink-0"
                       />
-                      <span className="font-medium">
-                        {member.name}
-                      </span>
+                      <div className="min-w-0">
+                        <span className="font-medium text-sm md:text-base block truncate">
+                          {member.name}
+                        </span>
+                        <span className="text-xs text-zinc-500 truncate block">
+                          @{member.username}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <PaymentStatusBadge paid={paid} />
+                    <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                      <PaymentStatusBadge paid={isPaid} />
 
-                      {isAdmin && !paid && (
-                        <Button
-                          size="sm"
-                          onClick={() => markPaid(member.id)}
-                        >
-                          Mark Paid
-                        </Button>
-                      )}
-
-                      {isAdmin && paid && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => undoPaid(member.id)}
-                        >
-                          Undo
-                        </Button>
+                      {isAdmin && (
+                        <>
+                          {!isPaid ? (
+                            <Button
+                              size="sm"
+                              onClick={() => handleMarkPaid(payment.id)}
+                              className="text-xs whitespace-nowrap"
+                            >
+                              Mark Paid
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => handleMarkUnpaid(payment.id)}
+                              className="text-xs whitespace-nowrap"
+                            >
+                              Undo
+                            </Button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
