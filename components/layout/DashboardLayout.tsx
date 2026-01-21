@@ -207,10 +207,19 @@ const DashboardLayout: React.FC = () => {
                                 className="bg-white text-indigo-600 px-3 py-1.5 rounded-full text-xs font-bold"
                                 onClick={(e) => {
                                     e.preventDefault();
-                                    alert('App download link will be available soon!');
+                                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+                                    const isAndroid = /Android/.test(navigator.userAgent);
+
+                                    if (isIOS) {
+                                        alert('To install BroCode:\n\n1. Tap the Share button (box with arrow)\n2. Scroll down and tap "Add to Home Screen"\n3. Tap "Add" to confirm');
+                                    } else if (isAndroid) {
+                                        alert('To install BroCode:\n\n1. Tap the menu (⋮) in your browser\n2. Tap "Add to Home screen" or "Install app"\n3. Tap "Add" to confirm');
+                                    } else {
+                                        alert('To install BroCode:\n\n1. Click the install icon in your browser address bar\n2. Or use your browser menu to "Install app"');
+                                    }
                                 }}
                             >
-                                Download
+                                Install
                             </a>
                             <button
                                 onClick={() => {
