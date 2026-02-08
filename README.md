@@ -190,7 +190,7 @@ Please read our [Contributing Guidelines](CONTRIBUTING.md) before submitting a P
 
 ### Good First Issues
 
-Look for issues labeled `good-first-issue` or `hacktoberfest` to get started!
+Look for issues labeled `good-first-issue` or `apertre3.0` to get started!
 
 ---
 
