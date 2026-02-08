@@ -307,6 +307,7 @@ const LoginPage: React.FC = () => {
                   <Input name="loginPassword" label="Password" type={showPassword ? 'text' : 'password'} value={formData.loginPassword} onChange={handleChange} error={errors.loginPassword} icon={<Lock size={16} />} rightIcon={showPassword ? <EyeOff size={16} /> : <Eye size={16} />} onRightIconClick={() => setShowPassword(!showPassword)} />
                   <div className="flex justify-end px-1"><button type="button" onClick={() => setView('forgot')} className="text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors">Forgot Password?</button></div>
                   <Button type="submit" className="w-full py-4 uppercase tracking-widest font-black" disabled={loading}>Enter Squad</Button>
+                  <div className="text-center"><button type="button" onClick={() => setView('mobile-register')} className="text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors">Create Account</button></div>
                 </form>
               </motion.div>
             )}
