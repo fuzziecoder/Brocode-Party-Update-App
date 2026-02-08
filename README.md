@@ -1,4 +1,4 @@
-# 🍺 BroCode Spot - Real-Time Party & Event Management
+#  BroCode Spot - Real-Time Party & Event Management
 
 <div align="center">
 
