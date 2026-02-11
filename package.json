@@ -11,7 +11,7 @@
   "dependencies": {
     "@google/genai": "^0.3.0",
     "@supabase/supabase-js": "^2.58.0",
-    "axios": "^1.7.2",
+    "axios": "^1.13.5",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.23.22",
     "gsap": "^3.14.2",
