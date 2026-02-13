@@ -1613,6 +1613,7 @@ export const attendanceService = {
     };
   },
 };
+<<<<<<< HEAD
 
 /* TRANSACTIONS */
 /* -------------------------------------------------------------------------- */
@@ -1744,3 +1745,5 @@ export const transactionService = {
     }
   },
 };
+=======
+>>>>>>> bedb01a0af53821680ce26a67bce5af226a10c8b

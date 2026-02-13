@@ -242,6 +242,7 @@ CREATE POLICY "Users can delete own moments" ON moments
   FOR DELETE USING (auth.uid() = user_id);
 ```
 
+<<<<<<< HEAD
 ### 7. `transactions` table
 
 Stores transaction history for payment tracking.
@@ -301,6 +302,8 @@ CREATE POLICY "Admins can update transactions" ON transactions
   );
 ```
 
+=======
+>>>>>>> bedb01a0af53821680ce26a67bce5af226a10c8b
 ## Real-time Subscriptions
 
 Enable real-time for the following tables in Supabase Dashboard:
@@ -308,7 +311,10 @@ Enable real-time for the following tables in Supabase Dashboard:
 - `invitations` - for RSVP updates
 - `payments` - for payment status updates
 - `chat_messages` - for chat updates
+<<<<<<< HEAD
 - `transactions` - for transaction history updates
+=======
+>>>>>>> bedb01a0af53821680ce26a67bce5af226a10c8b
 
 ## Initial Data
 
