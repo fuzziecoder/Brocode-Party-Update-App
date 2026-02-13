@@ -41,7 +41,7 @@ let USERS_DB: Record<string, UserProfile> = {
     username: "brocode",
     email: "brocode@gmail.com",
     phone: "7826821130",
-    password: "admin@brocode",
+    password: import.meta.env.VITE_ADMIN_PASSWORD || "changeme",
     role: UserRole.ADMIN,
     location: "Attibele",
     profile_pic_url: DEFAULT_AVATARS[0],
@@ -52,7 +52,7 @@ let USERS_DB: Record<string, UserProfile> = {
     name: "Dhanush",
     username: "dhanush",
     phone: "9994323520",
-    password: "dhanush123",
+    password: import.meta.env.VITE_USER_PASSWORD || "changeme",
     role: UserRole.USER,
     location: "Attibele",
     profile_pic_url: DEFAULT_AVATARS[1],
@@ -63,7 +63,7 @@ let USERS_DB: Record<string, UserProfile> = {
     name: "Godwin",
     username: "godwin",
     phone: "8903955341",
-    password: "godwin123",
+    password: import.meta.env.VITE_USER_PASSWORD || "changeme",
     role: UserRole.USER,
     location: "Attibele",
     profile_pic_url: DEFAULT_AVATARS[2],
@@ -74,7 +74,7 @@ let USERS_DB: Record<string, UserProfile> = {
     name: "Tharun",
     username: "tharun",
     phone: "9345624112",
-    password: "tharun123",
+    password: import.meta.env.VITE_USER_PASSWORD || "changeme",
     role: UserRole.USER,
     location: "Attibele",
     profile_pic_url: DEFAULT_AVATARS[3],
@@ -85,7 +85,7 @@ let USERS_DB: Record<string, UserProfile> = {
     name: "Sanjay",
     username: "sanjay",
     phone: "9865703667",
-    password: "sanjay123",
+    password: import.meta.env.VITE_USER_PASSWORD || "changeme",
     role: UserRole.USER,
     location: "Attibele",
     profile_pic_url: DEFAULT_AVATARS[0],
@@ -96,7 +96,7 @@ let USERS_DB: Record<string, UserProfile> = {
     name: "Soundar",
     username: "soundar",
     phone: "9566686921",
-    password: "soundar123",
+    password: import.meta.env.VITE_USER_PASSWORD || "changeme",
     role: UserRole.USER,
     location: "Attibele",
     profile_pic_url: DEFAULT_AVATARS[1],
@@ -107,7 +107,7 @@ let USERS_DB: Record<string, UserProfile> = {
     name: "Jagadeesh",
     username: "jagadeesh",
     phone: "6381038172",
-    password: "jagadeesh123",
+    password: import.meta.env.VITE_USER_PASSWORD || "changeme",
     role: UserRole.USER,
     location: "Attibele",
     profile_pic_url: DEFAULT_AVATARS[2],
@@ -118,7 +118,7 @@ let USERS_DB: Record<string, UserProfile> = {
     name: "Ram",
     username: "ram",
     phone: "7826821130",
-    password: "ram123",
+    password: import.meta.env.VITE_USER_PASSWORD || "changeme",
     role: UserRole.USER,
     location: "Attibele",
     profile_pic_url: DEFAULT_AVATARS[3],
@@ -129,7 +129,7 @@ let USERS_DB: Record<string, UserProfile> = {
     name: "Lingesh",
     username: "lingesh",
     phone: "",
-    password: "lingesh123",
+    password: import.meta.env.VITE_USER_PASSWORD || "changeme",
     role: UserRole.USER,
     location: "Attibele",
     profile_pic_url: DEFAULT_AVATARS[0],
@@ -306,9 +306,9 @@ export const mockApi = {
 
     const profile = Object.values(USERS_DB).find(
       (u) =>
-        (u.email === identifier || 
-         u.phone === cleanIdentifier || 
-         u.username === identifier) &&
+        (u.email === identifier ||
+          u.phone === cleanIdentifier ||
+          u.username === identifier) &&
         u.password === password
     );
 
@@ -538,8 +538,8 @@ export const mockApi = {
 
   async getUserSpots(userId: string): Promise<Spot[]> {
     await delay(200);
-    return SPOTS.filter((s) => 
-      s.created_by === userId || 
+    return SPOTS.filter((s) =>
+      s.created_by === userId ||
       s.members?.some((m) => m.id === userId)
     );
   },
