@@ -4,7 +4,7 @@ import { UserRole, Spot, Payment, PaymentStatus, Transaction } from "../types";
 import Card from "../components/common/Card";
 import Button from "../components/common/Button";
 import { QRCodeCanvas } from "qrcode.react";
-import { spotService, paymentService, invitationService, transactionService } from "../services/database";
+import { spotService, paymentService, invitationService, transactionService, userDrinkSelectionService } from "../services/database";
 import { InvitationStatus } from "../types";
 import { supabase } from "../services/supabase";
 import TransactionHistory from "../components/common/TransactionHistory";
@@ -33,6 +33,7 @@ const PaymentPage: React.FC = () => {
   const [spot, setSpot] = useState<Spot | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [userDrinkTotals, setUserDrinkTotals] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
@@ -72,8 +73,22 @@ const PaymentPage: React.FC = () => {
         // Fetch updated payments list
         const paymentData = await paymentService.getPayments(spotData.id);
         setPayments(paymentData);
+
+        // Fetch all drink selections for the spot to calculate totals
+        const allSelections = await userDrinkSelectionService.getAllSelections(spotData.id);
+
+        // Calculate total drink cost per user
+        const totals: Record<string, number> = {};
+        allSelections.forEach(selection => {
+          const userId = selection.user_id;
+          const cost = selection.total_price || (selection.quantity * selection.unit_price) || 0;
+          totals[userId] = (totals[userId] || 0) + cost;
+        });
+        setUserDrinkTotals(totals);
+
       } else {
         setPayments([]);
+        setUserDrinkTotals({});
       }
 
       // Fetch transaction history for current user
@@ -118,13 +133,18 @@ const PaymentPage: React.FC = () => {
   }
 
   const isAdmin = profile?.role === UserRole.ADMIN;
-  const amount = spot.budget;
+
+  // Calculate amounts for current user
+  const spotAmount = spot.budget;
+  const myDrinkTotal = profile ? (userDrinkTotals[profile.id] || 0) : 0;
+  const totalAmount = spotAmount + myDrinkTotal;
+
   const payeeVPA = "godw1921-1@okicici";
   const payeeName = "BroCode Admin";
 
   const baseUpi = `upi://pay?pa=${payeeVPA}&pn=${encodeURIComponent(
     payeeName
-  )}&am=${amount}&cu=INR&tn=BroCode%20Spot%20Payment`;
+  )}&am=${totalAmount}&cu=INR&tn=BroCode%20Spot%20Payment`;
 
   const openUPI = (app: "gpay" | "phonepe" | "paytm" | "navi") => {
     let url = baseUpi;
@@ -143,11 +163,15 @@ const PaymentPage: React.FC = () => {
       // Create a transaction record when payment is marked as paid
       const payment = payments.find(p => p.id === paymentId);
       if (payment && spot) {
+        // Calculate total for this specific user
+        const userDrinkCost = userDrinkTotals[payment.user_id] || 0;
+        const totalUserAmount = spot.budget + userDrinkCost;
+
         await transactionService.createTransaction({
           user_id: payment.user_id,
           spot_id: spot.id,
-          amount: spot.budget,
-          payment_method: 'UPI',
+          amount: totalUserAmount,
+          payment_method: 'UPI', // Default to UPI for now
           status: PaymentStatus.PAID,
         });
       }
@@ -201,10 +225,16 @@ const PaymentPage: React.FC = () => {
             />
           </div>
 
-          <p className="mt-3 text-sm md:text-base text-gray-400 font-semibold">
-            Amount: Rs.{amount}
-          </p>
-          <p className="mt-1 text-xs text-gray-500 break-all px-4">
+          <div className="mt-4 w-full">
+            <p className="text-lg md:text-xl text-white font-bold">
+              Total: ₹{totalAmount.toFixed(2)}
+            </p>
+            <p className="text-sm text-gray-400">
+              (Spot: ₹{spotAmount} + Drinks: ₹{myDrinkTotal})
+            </p>
+          </div>
+
+          <p className="mt-2 text-xs text-gray-500 break-all px-4">
             UPI ID: {payeeVPA}
           </p>
 
@@ -258,6 +288,8 @@ const PaymentPage: React.FC = () => {
                 .map((payment) => {
                   const isPaid = payment.status === PaymentStatus.PAID;
                   const member = payment.profiles;
+                  const memberDrinkTotal = userDrinkTotals[payment.user_id] || 0;
+                  const memberTotalAmount = spot.budget + memberDrinkTotal;
 
                   return (
                     <div
@@ -286,31 +318,40 @@ const PaymentPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-                        <PaymentStatusBadge paid={isPaid} />
+                      <div className="flex items-center justify-between sm:justify-end gap-3 flex-1 min-w-0">
+                        <div className="text-right mr-2">
+                          <span className="block font-bold text-sm">₹{memberTotalAmount}</span>
+                          <span className="block text-xs text-gray-500">
+                            ({spot.budget} + {memberDrinkTotal})
+                          </span>
+                        </div>
 
-                        {isAdmin && (
-                          <>
-                            {!isPaid ? (
-                              <Button
-                                size="sm"
-                                onClick={() => handleMarkPaid(payment.id)}
-                                className="text-xs whitespace-nowrap"
-                              >
-                                Mark Paid
-                              </Button>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => handleMarkUnpaid(payment.id)}
-                                className="text-xs whitespace-nowrap"
-                              >
-                                Undo
-                              </Button>
-                            )}
-                          </>
-                        )}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <PaymentStatusBadge paid={isPaid} />
+
+                          {isAdmin && (
+                            <>
+                              {!isPaid ? (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleMarkPaid(payment.id)}
+                                  className="text-xs whitespace-nowrap"
+                                >
+                                  Mark Paid
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => handleMarkUnpaid(payment.id)}
+                                  className="text-xs whitespace-nowrap"
+                                >
+                                  Undo
+                                </Button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
