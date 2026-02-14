@@ -4,7 +4,7 @@ import { UserRole, Spot, Payment, PaymentStatus, Transaction } from "../types";
 import Card from "../components/common/Card";
 import Button from "../components/common/Button";
 import { QRCodeCanvas } from "qrcode.react";
-import { spotService, paymentService, invitationService, transactionService, userDrinkSelectionService } from "../services/database";
+import { spotService, paymentService, invitationService, transactionService, userDrinkSelectionService, drinkService, foodService, cigaretteService } from "../services/database";
 import { InvitationStatus } from "../types";
 import { supabase } from "../services/supabase";
 import TransactionHistory from "../components/common/TransactionHistory";
@@ -74,16 +74,49 @@ const PaymentPage: React.FC = () => {
         const paymentData = await paymentService.getPayments(spotData.id);
         setPayments(paymentData);
 
-        // Fetch all drink selections for the spot to calculate totals
-        const allSelections = await userDrinkSelectionService.getAllSelections(spotData.id);
-
-        // Calculate total drink cost per user
+        // --------------------------------------------------------------------------
+        // Calculate Totals from All Sources
+        // --------------------------------------------------------------------------
         const totals: Record<string, number> = {};
+
+        // 1. User Drink Selections (Standard Menu)
+        const allSelections = await userDrinkSelectionService.getAllSelections(spotData.id);
         allSelections.forEach(selection => {
           const userId = selection.user_id;
           const cost = selection.total_price || (selection.quantity * selection.unit_price) || 0;
           totals[userId] = (totals[userId] || 0) + cost;
         });
+
+        // 2. Custom Drinks (suggested_by user)
+        try {
+          const customDrinks = await drinkService.getDrinks(spotData.id);
+          customDrinks.forEach(drink => {
+            if (drink.suggested_by && drink.price) {
+              totals[drink.suggested_by] = (totals[drink.suggested_by] || 0) + drink.price;
+            }
+          });
+        } catch (e) { console.error("Error fetching drinks", e); }
+
+        // 3. Food (added_by user)
+        try {
+          const foods = await foodService.getFoods(spotData.id);
+          foods.forEach(food => {
+            if (food.added_by && food.price) {
+              totals[food.added_by] = (totals[food.added_by] || 0) + food.price;
+            }
+          });
+        } catch (e) { console.error("Error fetching foods", e); }
+
+        // 4. Cigarettes (added_by user)
+        try {
+          const cigarettes = await cigaretteService.getCigarettes(spotData.id);
+          cigarettes.forEach(item => {
+            if (item.added_by && item.price) {
+              totals[item.added_by] = (totals[item.added_by] || 0) + item.price;
+            }
+          });
+        } catch (e) { console.error("Error fetching cigarettes", e); }
+
         setUserDrinkTotals(totals);
 
       } else {
@@ -111,6 +144,9 @@ const PaymentPage: React.FC = () => {
       const channel = paymentService.subscribeToPayments(spot.id, (payload) => {
         fetchData();
       });
+
+      // Subscribe to other tables too if needed, but for now mostly payments
+      // Ideally we should subscribe to drinks/food changes too, but page refresh is okay for now.
 
       return () => {
         supabase.removeChannel(channel);
@@ -230,7 +266,7 @@ const PaymentPage: React.FC = () => {
               Total: ₹{totalAmount.toFixed(2)}
             </p>
             <p className="text-sm text-gray-400">
-              (Spot: ₹{spotAmount} + Drinks: ₹{myDrinkTotal})
+              (Spot: ₹{spotAmount} + Extras: ₹{myDrinkTotal})
             </p>
           </div>
 
