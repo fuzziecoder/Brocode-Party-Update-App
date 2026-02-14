@@ -1,0 +1,8 @@
+
+{
+  "name": "BroCode",
+  "description": "A group meetup & drinkers’ planning web app with admin control, drink selection, payment tracking, and real-time bro-tracking.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}

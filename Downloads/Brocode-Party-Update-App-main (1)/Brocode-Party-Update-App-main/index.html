@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+  <meta name="theme-color" content="#000000" />
+  <title>BroCode - Spot Meetup App</title>
+  <link rel="icon" href="/logo.jpg" type="image/jpeg" />
+  <link rel="apple-touch-icon" href="/logo.jpg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Zen+Dots&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    /* Custom Scrollbar Styles for a better UX */
+    /* For Webkit browsers (Chrome, Safari, new Edge) */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #111111;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background-color: #4a4a4a;
+      border-radius: 4px;
+      border: 2px solid #111111;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background-color: #6a6a6a;
+    }
+
+    /* Star Border Animations */
+    @keyframes star-movement-bottom {
+      0% {
+        transform: translate(0%, 0%);
+        opacity: 1;
+      }
+
+      100% {
+        transform: translate(-100%, 0%);
+        opacity: 0;
+      }
+    }
+
+    @keyframes star-movement-top {
+      0% {
+        transform: translate(0%, 0%);
+        opacity: 1;
+      }
+
+      100% {
+        transform: translate(100%, 0%);
+        opacity: 0;
+      }
+    }
+
+    .animate-star-movement-bottom {
+      animation: star-movement-bottom linear infinite alternate;
+    }
+
+    .animate-star-movement-top {
+      animation: star-movement-top linear infinite alternate;
+    }
+  </style>
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC3CGsazjI6MuH2wCBO5m5AADSbahrg8yI&libraries=marker,places"
+    defer></script>
+
+
+  <link rel="stylesheet" href="/index.css">
+</head>
+
+<body class="bg-black text-gray-200">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
+</html>
