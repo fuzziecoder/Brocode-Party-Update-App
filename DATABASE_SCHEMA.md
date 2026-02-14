@@ -242,6 +242,68 @@ CREATE POLICY "Users can delete own moments" ON moments
   FOR DELETE USING (auth.uid() = user_id);
 ```
 
+<<<<<<< HEAD
+### 7. `transactions` table
+
+Stores transaction history for payment tracking.
+
+```sql
+CREATE TABLE transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  spot_id UUID NOT NULL REFERENCES spots(id) ON DELETE CASCADE,
+  amount NUMERIC NOT NULL,
+  payment_method TEXT NOT NULL DEFAULT 'UPI',
+  status TEXT NOT NULL DEFAULT 'not_paid' CHECK (status IN ('paid', 'not_paid')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create indexes for faster queries
+CREATE INDEX transactions_user_id_idx ON transactions(user_id);
+CREATE INDEX transactions_spot_id_idx ON transactions(spot_id);
+CREATE INDEX transactions_created_at_idx ON transactions(created_at DESC);
+
+-- Enable RLS
+ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can read their own transactions
+CREATE POLICY "Users can read own transactions" ON transactions
+  FOR SELECT USING (auth.uid() = user_id);
+
+-- Policy: Admins can read all transactions
+CREATE POLICY "Admins can read all transactions" ON transactions
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.role = 'admin'
+    )
+  );
+
+-- Policy: Admins can create transactions
+CREATE POLICY "Admins can create transactions" ON transactions
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.role = 'admin'
+    )
+  );
+
+-- Policy: Admins can update transactions
+CREATE POLICY "Admins can update transactions" ON transactions
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.role = 'admin'
+    )
+  );
+```
+
+=======
+>>>>>>> bedb01a0af53821680ce26a67bce5af226a10c8b
 ## Real-time Subscriptions
 
 Enable real-time for the following tables in Supabase Dashboard:
@@ -249,6 +311,10 @@ Enable real-time for the following tables in Supabase Dashboard:
 - `invitations` - for RSVP updates
 - `payments` - for payment status updates
 - `chat_messages` - for chat updates
+<<<<<<< HEAD
+- `transactions` - for transaction history updates
+=======
+>>>>>>> bedb01a0af53821680ce26a67bce5af226a10c8b
 
 ## Initial Data
 

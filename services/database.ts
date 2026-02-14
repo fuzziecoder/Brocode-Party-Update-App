@@ -1613,3 +1613,137 @@ export const attendanceService = {
     };
   },
 };
+<<<<<<< HEAD
+
+/* TRANSACTIONS */
+/* -------------------------------------------------------------------------- */
+
+export const transactionService = {
+  // Get transactions for a user
+  async getUserTransactions(userId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select(`
+        *,
+        profiles:user_id (
+          id,
+          name,
+          username,
+          profile_pic_url
+        ),
+        spots:spot_id (
+          id,
+          date,
+          location
+        )
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching user transactions:', error);
+      // If table doesn't exist, return empty array
+      if (error.message?.includes('does not exist') ||
+        error.message?.includes('relation') ||
+        error.code === '42P01') {
+        return [];
+      }
+      throw error;
+    }
+
+    return data || [];
+  },
+
+  // Get all transactions (admin only)
+  async getAllTransactions(): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select(`
+        *,
+        profiles:user_id (
+          id,
+          name,
+          username,
+          profile_pic_url
+        ),
+        spots:spot_id (
+          id,
+          date,
+          location
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching all transactions:', error);
+      // If table doesn't exist, return empty array
+      if (error.message?.includes('does not exist') ||
+        error.message?.includes('relation') ||
+        error.code === '42P01') {
+        return [];
+      }
+      throw error;
+    }
+
+    return data || [];
+  },
+
+  // Create a transaction
+  async createTransaction(transactionData: {
+    user_id: string;
+    spot_id: string;
+    amount: number;
+    payment_method: string;
+    status: PaymentStatus;
+  }): Promise<any> {
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert({
+        user_id: transactionData.user_id,
+        spot_id: transactionData.spot_id,
+        amount: transactionData.amount,
+        payment_method: transactionData.payment_method,
+        status: transactionData.status,
+      })
+      .select(`
+        *,
+        profiles:user_id (
+          id,
+          name,
+          username,
+          profile_pic_url
+        ),
+        spots:spot_id (
+          id,
+          date,
+          location
+        )
+      `)
+      .single();
+
+    if (error) {
+      console.error('Error creating transaction:', error);
+      throw error;
+    }
+
+    return data;
+  },
+
+  // Update transaction status
+  async updateTransactionStatus(
+    transactionId: string,
+    status: PaymentStatus
+  ): Promise<void> {
+    const { error } = await supabase
+      .from('transactions')
+      .update({ status })
+      .eq('id', transactionId);
+
+    if (error) {
+      console.error('Error updating transaction status:', error);
+      throw error;
+    }
+  },
+};
+=======
+>>>>>>> bedb01a0af53821680ce26a67bce5af226a10c8b
