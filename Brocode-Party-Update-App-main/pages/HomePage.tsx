@@ -761,14 +761,13 @@ const HomePage: React.FC = () => {
                     </div>
                     {isAdmin && (
                       <div className="flex gap-2">
-                        <Button
+                        <GlowButton
                           size="sm"
-                          variant="secondary"
+                          variant="sponsor"
                           onClick={() => setIsSponsorModalOpen(true)}
-                          className="!bg-amber-500/10 !text-amber-400 !border-amber-500/50 hover:!bg-amber-500/20"
                         >
                           <Crown size={14} className="mr-1" /> Sponsor
-                        </Button>
+                        </GlowButton>
                         <Button
                           size="sm"
                           variant="secondary"
