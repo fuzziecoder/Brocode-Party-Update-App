@@ -195,12 +195,15 @@ const ChatPage: React.FC = () => {
 
                                     <div className="relative flex flex-col space-y-1">
                                         {!isMe && showAvatar && (
-                                            <span
-                                                className="text-[10px] font-black text-zinc-500 uppercase tracking-tighter ml-1 cursor-pointer hover:text-zinc-400 transition-colors"
-                                                onClick={() => window.location.href = `/dashboard/profile/${msg.user_id}`}
-                                            >
-                                                {msg.profiles.name}
-                                            </span>
+                                            <div className="flex items-center gap-1 ml-1 mb-0.5">
+                                                <span
+                                                    className="text-[10px] font-black text-zinc-500 uppercase tracking-tighter cursor-pointer hover:text-zinc-400 transition-colors"
+                                                    onClick={() => window.location.href = `/dashboard/profile/${msg.user_id}`}
+                                                >
+                                                    {msg.profiles.name}
+                                                </span>
+                                                {msg.profiles.is_sponsor && <SponsorBadge size="sm" showLabel={false} animate={false} />}
+                                            </div>
                                         )}
 
                                         <div className="relative group">

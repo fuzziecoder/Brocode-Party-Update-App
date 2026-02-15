@@ -174,7 +174,8 @@ export const invitationService = {
           email,
           role,
           profile_pic_url,
-          location
+          location,
+          is_sponsor
         )
       `)
       .eq('spot_id', spotId)
@@ -220,7 +221,8 @@ export const invitationService = {
           email,
           role,
           profile_pic_url,
-          location
+          location,
+          is_sponsor
         )
       `)
       .single();
@@ -294,7 +296,8 @@ export const paymentService = {
           email,
           role,
           profile_pic_url,
-          location
+          location,
+          is_sponsor
         )
       `)
       .eq('spot_id', spotId)
@@ -341,7 +344,8 @@ export const paymentService = {
           email,
           role,
           profile_pic_url,
-          location
+          location,
+          is_sponsor
         )
       `)
       .single();
@@ -554,7 +558,8 @@ export const drinkService = {
         .select(`
           *,
           profiles:suggested_by (
-            name
+            name,
+            is_sponsor
           )
         `)
         .eq('spot_id', spotId)
@@ -618,7 +623,8 @@ export const drinkService = {
       .select(`
         *,
         profiles:suggested_by (
-          name
+          name,
+          is_sponsor
         )
       `)
       .single();
@@ -653,7 +659,8 @@ export const drinkService = {
       .select(`
         *,
         profiles:suggested_by (
-          name
+          name,
+          is_sponsor
         )
       `)
       .single();
@@ -715,7 +722,8 @@ export const drinkService = {
       .select(`
         *,
         profiles:suggested_by (
-          name
+          name,
+          is_sponsor
         )
       `)
       .single();
@@ -765,7 +773,8 @@ export const cigaretteService = {
           *,
           profiles:added_by (
             name,
-            profile_pic_url
+            profile_pic_url,
+            is_sponsor
           )
         `)
         .eq('spot_id', spotId)
@@ -822,7 +831,8 @@ export const cigaretteService = {
         *,
         profiles:added_by (
           name,
-          profile_pic_url
+          profile_pic_url,
+          is_sponsor
         )
       `)
       .single();
@@ -862,7 +872,8 @@ export const cigaretteService = {
         *,
         profiles:added_by (
           name,
-          profile_pic_url
+          profile_pic_url,
+          is_sponsor
         )
       `)
       .single();
@@ -911,7 +922,8 @@ export const foodService = {
           *,
           profiles:added_by (
             name,
-            profile_pic_url
+            profile_pic_url,
+            is_sponsor
           )
         `)
         .eq('spot_id', spotId)
@@ -973,7 +985,8 @@ export const foodService = {
         *,
         profiles:added_by (
           name,
-          profile_pic_url
+          profile_pic_url,
+          is_sponsor
         )
       `)
       .single();
@@ -1008,7 +1021,8 @@ export const foodService = {
         *,
         profiles:added_by (
           name,
-          profile_pic_url
+          profile_pic_url,
+          is_sponsor
         )
       `)
       .single();

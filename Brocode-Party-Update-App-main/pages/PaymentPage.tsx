@@ -8,6 +8,7 @@ import { spotService, paymentService, invitationService, transactionService, use
 import { InvitationStatus } from "../types";
 import { supabase } from "../services/supabase";
 import TransactionHistory from "../components/common/TransactionHistory";
+import SponsorBadge from "../components/common/SponsorBadge";
 
 /* -------------------------------------------------------------------------- */
 /* Status Badge */
@@ -349,9 +350,12 @@ const PaymentPage: React.FC = () => {
                           className="w-10 h-10 rounded-full border border-white/10 flex-shrink-0"
                         />
                         <div className="min-w-0">
-                          <span className="font-medium text-sm md:text-base block truncate">
-                            {member.name}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium text-sm md:text-base block truncate">
+                              {member.name}
+                            </span>
+                            {member.is_sponsor && <SponsorBadge size="sm" showLabel={false} animate={false} />}
+                          </div>
                           <span className="text-xs text-zinc-500 truncate block">
                             @{member.username}
                           </span>

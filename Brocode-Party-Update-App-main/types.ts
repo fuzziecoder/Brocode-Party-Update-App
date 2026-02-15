@@ -66,7 +66,7 @@ export interface Drink {
   suggested_by: string; // User's ID
   voted_by: string[]; // Array of User IDs
   price?: number; // Price set by admin
-  profiles?: { name: string }; // Joined data for suggester's name
+  profiles?: { name: string; is_sponsor?: boolean }; // Joined data for suggester's name
 }
 
 export interface Cigarette {
@@ -77,7 +77,7 @@ export interface Cigarette {
   added_by: string; // User's ID
   price?: number; // Price set by admin
   created_at: string; // ISO String
-  profiles?: { name: string; profile_pic_url?: string }; // Joined data for adder's name
+  profiles?: { name: string; profile_pic_url?: string; is_sponsor?: boolean }; // Joined data for adder's name
 }
 
 export interface Food {
@@ -88,7 +88,7 @@ export interface Food {
   added_by: string; // User's ID
   price?: number; // Price set by admin
   created_at: string; // ISO String
-  profiles?: { name: string; profile_pic_url?: string }; // Joined data for adder's name
+  profiles?: { name: string; profile_pic_url?: string; is_sponsor?: boolean }; // Joined data for adder's name
 }
 
 export interface Invitation {

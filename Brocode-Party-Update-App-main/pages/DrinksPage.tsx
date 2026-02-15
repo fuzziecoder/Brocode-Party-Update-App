@@ -1225,7 +1225,10 @@ const DrinksPage: React.FC = () => {
                         )}
                       </div>
                       <h3 className="font-semibold text-sm mb-1 line-clamp-1">{drink.name}</h3>
-                      <p className="text-xs text-zinc-500 mb-1">by {drink.profiles?.name || 'Unknown'}</p>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <p className="text-xs text-zinc-500">by {drink.profiles?.name || 'Unknown'}</p>
+                        {drink.profiles?.is_sponsor && <SponsorBadge size="sm" showLabel={false} animate={false} />}
+                      </div>
                       {drink.price && <p className="text-sm text-indigo-400">Rs.{drink.price}</p>}
                       {!drink.price && <p className="text-xs text-zinc-600">Price not set</p>}
                     </Card>
@@ -1750,22 +1753,23 @@ const DrinksPage: React.FC = () => {
                     name: string;
                     items: { name: string; price: number | null; image?: string; type: string }[];
                     userId: string;
+                    isSponsor?: boolean;
                   }> = {};
 
-                  const ensureUser = (userId: string, userName: string) => {
-                    if (!userMap[userId]) userMap[userId] = { name: userName, items: [], userId: userId };
+                  const ensureUser = (userId: string, userName: string, isSponsor?: boolean) => {
+                    if (!userMap[userId]) userMap[userId] = { name: userName, items: [], userId: userId, isSponsor };
                   };
 
                   drinks.forEach(d => {
-                    ensureUser(d.suggested_by, d.profiles?.name || 'Unknown');
+                    ensureUser(d.suggested_by, d.profiles?.name || 'Unknown', d.profiles?.is_sponsor);
                     userMap[d.suggested_by].items.push({ name: d.name, price: d.price || null, image: d.image_url, type: '🍺' });
                   });
                   foods.forEach(f => {
-                    ensureUser(f.added_by, f.profiles?.name || 'Unknown');
+                    ensureUser(f.added_by, f.profiles?.name || 'Unknown', f.profiles?.is_sponsor);
                     userMap[f.added_by].items.push({ name: f.name, price: f.price || null, image: f.image_url, type: '🍕' });
                   });
                   cigarettes.forEach(c => {
-                    ensureUser(c.added_by, c.profiles?.name || 'Unknown');
+                    ensureUser(c.added_by, c.profiles?.name || 'Unknown', c.profiles?.is_sponsor);
                     userMap[c.added_by].items.push({ name: c.name, price: c.price || null, image: c.image_url, type: '🚬' });
                   });
 
@@ -1791,6 +1795,7 @@ const DrinksPage: React.FC = () => {
                               <div className="flex items-center justify-between">
                                 <h3 className="font-bold text-white text-lg flex items-center gap-2">
                                   {userData.name}
+                                  {userData.isSponsor && <SponsorBadge size="sm" showLabel={false} animate={false} />}
                                   {isConfirmed && <CheckCircle2 size={16} className="text-emerald-500" />}
                                 </h3>
                                 <span className="text-indigo-400 font-bold">₹{userTotal}</span>
