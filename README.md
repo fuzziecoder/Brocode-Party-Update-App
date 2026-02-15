@@ -1,6 +1,6 @@
 #  BroCode Spot - Real-Time Party & Event Management
 
-   ### STAR THIS REPO THEN START CONTRIBUTE WITH ❤️
+   ### STAR THIS REPO THEN START CONTRIBUTE WITH ❤️ FOR APERTRE3.0
 <div align="center">
 
 ![BroCode Spot](https://img.shields.io/badge/BroCode-Spot-orange?style=for-the-badge&logo=react)
