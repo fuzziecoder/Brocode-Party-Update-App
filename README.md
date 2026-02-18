@@ -98,6 +98,30 @@ BroCode Spot is a full-stack web application designed to streamline group orderi
    npm run dev
    ```
 
+### Optional: Run the local backend API
+
+This project now includes a lightweight Node.js backend in `backend/server.js` that provides starter APIs for:
+- health check
+- login (mock)
+- catalog retrieval
+- spot listing
+- order creation/listing
+- bill summary
+
+Start it with:
+
+```bash
+npm run backend
+```
+
+Run frontend + backend together:
+
+```bash
+npm run dev:all
+```
+
+By default, the backend runs on `http://localhost:4000`.
+
 6. **Open in browser**
    ```
    http://localhost:5173
