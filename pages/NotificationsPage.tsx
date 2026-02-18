@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Notification } from '../types';
 import Card from '../components/common/Card';
 import { motion, AnimatePresence } from 'framer-motion';
+import { BellOff, RefreshCw } from 'lucide-react';
 import { useNotifications } from '../contexts/NotificationsContext';
 
 const timeAgo = (dateString: string): string => {
@@ -110,8 +111,28 @@ const NotificationsPage: React.FC = () => {
                         ))}
                     </AnimatePresence>
                      {filteredNotifications.length === 0 && (
-                         <div className="p-6 text-center text-gray-400">
-                            {notifications.length === 0 ? "You're all caught up!" : "No notifications match your filters."}
+                         <div className="px-6 py-12 text-center">
+                            <div className="mx-auto mb-4 w-14 h-14 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center">
+                                <BellOff className="w-7 h-7 text-zinc-400" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-zinc-200">
+                                {notifications.length === 0 ? "You're all caught up" : "No notifications found"}
+                            </h3>
+                            <p className="text-sm text-zinc-400 mt-2">
+                                {notifications.length === 0
+                                    ? "We'll let you know when there is a new update for your party crew."
+                                    : "Try changing the status or type filters to see more results."}
+                            </p>
+                            <button
+                                onClick={() => {
+                                    setStatusFilter('all');
+                                    setTypeFilter('all');
+                                }}
+                                className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-md bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium transition-colors"
+                            >
+                                <RefreshCw className="w-4 h-4" />
+                                Reset Filters
+                            </button>
                          </div>
                      )}
                 </div>

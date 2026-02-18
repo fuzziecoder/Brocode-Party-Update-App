@@ -178,7 +178,16 @@ const ProfileForm: React.FC<{ onSave: () => void }> = ({ onSave }) => {
             {errors.location && (
                 <p className="text-red-400 text-xs -mt-4">{errors.location}</p>
             )}
-            <Button type="submit" disabled={loading || checkingUsername} className="w-full py-4 font-black uppercase tracking-widest">Update Profile</Button>
+            <Button type="submit" disabled={loading || checkingUsername} className="w-full py-4 font-black uppercase tracking-widest">
+                {loading ? (
+                    <span className="inline-flex items-center justify-center gap-2">
+                        <span className="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin" aria-hidden="true" />
+                        Saving...
+                    </span>
+                ) : (
+                    'Update Profile'
+                )}
+            </Button>
         </form>
     );
 };

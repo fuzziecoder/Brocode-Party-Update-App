@@ -43,11 +43,7 @@ export interface Spot {
   day: string;
   timing: string;
   budget: number;
-<<<<<<< HEAD
   location: string;
-=======
-  location:string;
->>>>>>> bedb01a0af53821680ce26a67bce5af226a10c8b
   created_by: string; // User ID
   feedback?: string;
   description?: string;
@@ -107,7 +103,6 @@ export interface Payment {
   drink_total_amount?: number; // Total amount for selected drinks
 }
 
-<<<<<<< HEAD
 export interface Transaction {
   id: string; // UUID
   user_id: string; // UUID
@@ -119,9 +114,6 @@ export interface Transaction {
   profiles?: UserProfile; // Joined data from profiles table
   spots?: Spot; // Joined data from spots table
 }
-
-=======
->>>>>>> bedb01a0af53821680ce26a67bce5af226a10c8b
 export interface DrinkBrand {
   id: string; // UUID
   name: string;

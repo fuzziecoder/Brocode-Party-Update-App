@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../hooks/useAuth";
-<<<<<<< HEAD
 import { UserRole, Spot, Payment, PaymentStatus, Transaction } from "../types";
 import Card from "../components/common/Card";
 import Button from "../components/common/Button";
@@ -9,15 +8,6 @@ import { spotService, paymentService, invitationService, transactionService } fr
 import { InvitationStatus } from "../types";
 import { supabase } from "../services/supabase";
 import TransactionHistory from "../components/common/TransactionHistory";
-=======
-import { UserRole, Spot, Payment, PaymentStatus } from "../types";
-import Card from "../components/common/Card";
-import Button from "../components/common/Button";
-import { QRCodeCanvas } from "qrcode.react";
-import { spotService, paymentService, invitationService } from "../services/database";
-import { InvitationStatus } from "../types";
-import { supabase } from "../services/supabase";
->>>>>>> bedb01a0af53821680ce26a67bce5af226a10c8b
 
 /* -------------------------------------------------------------------------- */
 /* Status Badge */
@@ -42,10 +32,7 @@ const PaymentPage: React.FC = () => {
   const { profile } = useAuth();
   const [spot, setSpot] = useState<Spot | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
-<<<<<<< HEAD
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-=======
->>>>>>> bedb01a0af53821680ce26a67bce5af226a10c8b
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
@@ -88,25 +75,17 @@ const PaymentPage: React.FC = () => {
       } else {
         setPayments([]);
       }
-<<<<<<< HEAD
-
       // Fetch transaction history for current user
       if (profile?.id) {
         const transactionData = await transactionService.getUserTransactions(profile.id);
         setTransactions(transactionData);
       }
-=======
->>>>>>> bedb01a0af53821680ce26a67bce5af226a10c8b
     } catch (error) {
       console.error("Error loading payment data:", error);
     } finally {
       setLoading(false);
     }
-<<<<<<< HEAD
   }, [profile?.id]);
-=======
-  }, []);
->>>>>>> bedb01a0af53821680ce26a67bce5af226a10c8b
 
   useEffect(() => {
     fetchData();
@@ -159,7 +138,6 @@ const PaymentPage: React.FC = () => {
     if (!isAdmin) return;
     try {
       await paymentService.updatePaymentStatus(paymentId, PaymentStatus.PAID);
-<<<<<<< HEAD
 
       // Create a transaction record when payment is marked as paid
       const payment = payments.find(p => p.id === paymentId);
@@ -172,9 +150,6 @@ const PaymentPage: React.FC = () => {
           status: PaymentStatus.PAID,
         });
       }
-
-=======
->>>>>>> bedb01a0af53821680ce26a67bce5af226a10c8b
       await fetchData();
     } catch (error: any) {
       alert(`Failed to update payment: ${error.message || 'Please try again.'}`);
@@ -342,12 +317,8 @@ const PaymentPage: React.FC = () => {
           )}
         </Card>
       </div>
-<<<<<<< HEAD
-
       {/* ---------------- TRANSACTION HISTORY ---------------- */}
       <TransactionHistory transactions={transactions} loading={loading} />
-=======
->>>>>>> bedb01a0af53821680ce26a67bce5af226a10c8b
     </div>
   );
 };
