@@ -1,7 +1,6 @@
 import { createServer } from 'node:http';
-import { randomUUID } from 'node:crypto';
 import { URL } from 'node:url';
-import { dataStore } from './store.js';
+import { database, dbPath } from './db.js';
 
 const port = Number(process.env.PORT || 4000);
 
@@ -63,15 +62,14 @@ const server = createServer(async (req, res) => {
         return;
       }
 
-      const user = dataStore.users.find((item) => item.username === username && item.password === password);
+      const user = database.getUserByCredentials(username, password);
 
       if (!user) {
         sendJson(res, 401, { error: 'invalid credentials' });
         return;
       }
 
-      const { password: _password, ...publicUser } = user;
-      sendJson(res, 200, { token: `demo-token-${user.id}`, user: publicUser });
+      sendJson(res, 200, { token: `demo-token-${user.id}`, user });
       return;
     } catch (error) {
       sendJson(res, 400, { error: error.message });
@@ -80,13 +78,14 @@ const server = createServer(async (req, res) => {
   }
 
   if (method === 'GET' && path === '/api/catalog') {
-    sendJson(res, 200, dataStore.catalog);
+    sendJson(res, 200, database.getCatalog());
     return;
   }
 
   if (method === 'GET' && path.startsWith('/api/catalog/')) {
     const category = path.replace('/api/catalog/', '');
-    const items = dataStore.catalog[category];
+    const catalog = database.getCatalog();
+    const items = catalog[category];
 
     if (!items) {
       sendJson(res, 404, { error: `Unknown category: ${category}` });
@@ -98,7 +97,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (method === 'GET' && path === '/api/spots') {
-    sendJson(res, 200, dataStore.spots);
+    sendJson(res, 200, database.getSpots());
     return;
   }
 
@@ -106,13 +105,8 @@ const server = createServer(async (req, res) => {
     const spotId = parsedUrl.searchParams.get('spotId');
     const userId = parsedUrl.searchParams.get('userId');
 
-    const filteredOrders = dataStore.orders.filter((order) => {
-      if (spotId && order.spotId !== spotId) return false;
-      if (userId && order.userId !== userId) return false;
-      return true;
-    });
-
-    sendJson(res, 200, filteredOrders);
+    const orders = database.getOrders({ spotId, userId });
+    sendJson(res, 200, orders);
     return;
   }
 
@@ -125,30 +119,7 @@ const server = createServer(async (req, res) => {
         return;
       }
 
-      const parsedItems = items.map((item) => {
-        const quantity = Number(item.quantity || 0);
-        const unitPrice = Number(item.unitPrice || 0);
-
-        return {
-          productId: item.productId,
-          name: item.name,
-          quantity,
-          unitPrice,
-          total: quantity * unitPrice,
-        };
-      });
-
-      const totalAmount = parsedItems.reduce((sum, item) => sum + item.total, 0);
-      const newOrder = {
-        id: randomUUID(),
-        spotId,
-        userId,
-        items: parsedItems,
-        totalAmount,
-        createdAt: new Date().toISOString(),
-      };
-
-      dataStore.orders.push(newOrder);
+      const newOrder = database.createOrder({ spotId, userId, items });
       sendJson(res, 201, newOrder);
       return;
     } catch (error) {
@@ -159,21 +130,8 @@ const server = createServer(async (req, res) => {
 
   if (method === 'GET' && path.startsWith('/api/bills/')) {
     const spotId = path.replace('/api/bills/', '');
-    const orders = dataStore.orders.filter((order) => order.spotId === spotId);
-
-    const userTotals = orders.reduce((acc, order) => {
-      acc[order.userId] = (acc[order.userId] || 0) + order.totalAmount;
-      return acc;
-    }, {});
-
-    const total = orders.reduce((sum, order) => sum + order.totalAmount, 0);
-
-    sendJson(res, 200, {
-      spotId,
-      total,
-      userTotals,
-      orderCount: orders.length,
-    });
+    const bill = database.getBillBySpotId(spotId);
+    sendJson(res, 200, bill);
     return;
   }
 
@@ -182,4 +140,5 @@ const server = createServer(async (req, res) => {
 
 server.listen(port, () => {
   console.log(`Backend API running on http://localhost:${port}`);
+  console.log(`Using SQLite database at: ${dbPath}`);
 });
