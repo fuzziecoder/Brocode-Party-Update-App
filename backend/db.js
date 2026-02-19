@@ -128,6 +128,13 @@ const fetchOrderItemsByOrderIds = (orderIds) => {
   return itemsByOrderId;
 };
 
+const getCatalogItemByIdStatement = db.prepare(
+  'SELECT id, category, name, price FROM catalog_items WHERE id = ?'
+);
+
+const userExistsStatement = db.prepare('SELECT 1 AS found FROM users WHERE id = ? LIMIT 1');
+const spotExistsStatement = db.prepare('SELECT 1 AS found FROM spots WHERE id = ? LIMIT 1');
+
 export const database = {
   getUserByCredentials(username, password) {
     const user = db
@@ -160,6 +167,14 @@ export const database = {
   getCatalogCategory(category) {
     const rows = db.prepare('SELECT id, name, price FROM catalog_items WHERE category = ? ORDER BY id').all(category);
     return rows;
+  },
+
+  userExists(userId) {
+    return Boolean(userExistsStatement.get(userId));
+  },
+
+  spotExists(spotId) {
+    return Boolean(spotExistsStatement.get(spotId));
   },
 
   getSpots() {
@@ -200,14 +215,21 @@ export const database = {
   createOrder({ spotId, userId, items }) {
     const parsedItems = items.map((item) => {
       const quantity = Number(item.quantity || 0);
-      const unitPrice = Number(item.unitPrice || 0);
+      if (!item.productId || !Number.isInteger(quantity) || quantity <= 0) {
+        throw new Error('Each order item must include productId and a positive integer quantity');
+      }
+
+      const catalogItem = getCatalogItemByIdStatement.get(item.productId);
+      if (!catalogItem) {
+        throw new Error(`Unknown productId: ${item.productId}`);
+      }
 
       return {
-        productId: item.productId,
-        name: item.name,
+        productId: catalogItem.id,
+        name: catalogItem.name,
         quantity,
-        unitPrice,
-        total: quantity * unitPrice,
+        unitPrice: catalogItem.price,
+        total: quantity * catalogItem.price,
       };
     });
 

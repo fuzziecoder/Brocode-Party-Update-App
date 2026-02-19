@@ -119,11 +119,25 @@ const server = createServer(async (req, res) => {
         return;
       }
 
+      if (!database.userExists(userId)) {
+        sendJson(res, 404, { error: `Unknown userId: ${userId}` });
+        return;
+      }
+
+      if (!database.spotExists(spotId)) {
+        sendJson(res, 404, { error: `Unknown spotId: ${spotId}` });
+        return;
+      }
+
       const newOrder = database.createOrder({ spotId, userId, items });
       sendJson(res, 201, newOrder);
       return;
     } catch (error) {
-      sendJson(res, 400, { error: error.message });
+      const isValidationError =
+        error.message.includes('Unknown productId') ||
+        error.message.includes('Each order item must include productId');
+
+      sendJson(res, isValidationError ? 400 : 500, { error: error.message });
       return;
     }
   }
