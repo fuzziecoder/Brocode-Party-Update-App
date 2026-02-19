@@ -10,6 +10,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { NotificationsProvider } from "./contexts/NotificationsContext";
 import { ChatProvider } from "./contexts/ChatContext";
 import { PaymentProvider } from "./contexts/PaymentContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
 
 import SplashPage from "./pages/SplashPage";
 import LoginPage from "./pages/LoginPage";
@@ -20,6 +21,7 @@ import NotificationsPage from "./pages/NotificationsPage";
 import ProfilePage from "./pages/ProfilePage";
 import ChatPage from "./pages/ChatPage";
 import DrinksPage from "./pages/DrinksPage";
+import SettingsPage from "./pages/SettingsPage";
 
 import DashboardLayout from "./components/layout/DashboardLayout";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
@@ -27,6 +29,7 @@ import TargetCursor from "./components/common/TargetCursor";
 
 const App: React.FC = () => {
   return (
+    <ThemeProvider>
     <AuthProvider>
       <NotificationsProvider>
         <PaymentProvider>
@@ -59,6 +62,7 @@ const App: React.FC = () => {
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="profile" element={<ProfilePage />} />
                   <Route path="profile/:userId" element={<ProfilePage />} />
+                  <Route path="settings" element={<SettingsPage />} />
                 </Route>
 
                 <Route path="*" element={<Navigate to="/" />} />
@@ -68,6 +72,7 @@ const App: React.FC = () => {
         </PaymentProvider>
       </NotificationsProvider>
     </AuthProvider>
+    </ThemeProvider>
   );
 };
 
