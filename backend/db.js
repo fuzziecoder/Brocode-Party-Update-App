@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 
 const defaultDbPath = resolve(process.cwd(), 'backend', 'data', 'brocode.sqlite');
@@ -14,6 +14,30 @@ if (!existsSync(dbDirectory)) {
 const db = new DatabaseSync(dbPath);
 db.exec('PRAGMA journal_mode = WAL;');
 db.exec('PRAGMA foreign_keys = ON;');
+
+const HASH_PREFIX = 'scrypt$';
+const SCRYPT_KEY_LENGTH = 64;
+
+const hashPassword = (password, saltHex = randomBytes(16).toString('hex')) => {
+  const derivedKey = scryptSync(password, Buffer.from(saltHex, 'hex'), SCRYPT_KEY_LENGTH);
+  return `${HASH_PREFIX}${saltHex}$${derivedKey.toString('hex')}`;
+};
+
+const verifyPassword = (password, storedPassword) => {
+  if (!storedPassword?.startsWith(HASH_PREFIX)) {
+    return password === storedPassword;
+  }
+
+  const [, saltHex, expectedHashHex] = storedPassword.split('$');
+  const candidateHash = scryptSync(password, Buffer.from(saltHex, 'hex'), SCRYPT_KEY_LENGTH);
+  const expectedHash = Buffer.from(expectedHashHex, 'hex');
+
+  if (candidateHash.length !== expectedHash.length) {
+    return false;
+  }
+
+  return timingSafeEqual(candidateHash, expectedHash);
+};
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -65,8 +89,8 @@ const hasUsers = db.prepare('SELECT COUNT(*) AS count FROM users').get().count >
 
 if (!hasUsers) {
   const insertUser = db.prepare('INSERT INTO users (id, username, password, name, role) VALUES (?, ?, ?, ?, ?)');
-  insertUser.run('u-1', 'brocode', 'changeme', 'Ram', 'admin');
-  insertUser.run('u-2', 'dhanush', 'changeme', 'Dhanush', 'user');
+  insertUser.run('u-1', 'brocode', hashPassword('changeme'), 'Ram', 'admin');
+  insertUser.run('u-2', 'dhanush', hashPassword('changeme'), 'Dhanush', 'user');
 
   const insertSpot = db.prepare('INSERT INTO spots (id, location, date, host_user_id) VALUES (?, ?, ?, ?)');
   insertSpot.run('spot-2025-07-26', 'Attibele Toll Plaza', '2025-07-26T10:00:00.000Z', 'u-1');
@@ -134,14 +158,27 @@ const getCatalogItemByIdStatement = db.prepare(
 
 const userExistsStatement = db.prepare('SELECT 1 AS found FROM users WHERE id = ? LIMIT 1');
 const spotExistsStatement = db.prepare('SELECT 1 AS found FROM spots WHERE id = ? LIMIT 1');
+const getUserByUsernameStatement = db.prepare('SELECT id, username, password, name, role FROM users WHERE username = ?');
+const updateUserPasswordStatement = db.prepare('UPDATE users SET password = ? WHERE id = ?');
 
 export const database = {
   getUserByCredentials(username, password) {
-    const user = db
-      .prepare('SELECT id, username, name, role FROM users WHERE username = ? AND password = ?')
-      .get(username, password);
+    const user = getUserByUsernameStatement.get(username);
 
-    return user || null;
+    if (!user || !verifyPassword(password, user.password)) {
+      return null;
+    }
+
+    if (!user.password.startsWith(HASH_PREFIX)) {
+      updateUserPasswordStatement.run(hashPassword(password), user.id);
+    }
+
+    return {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      role: user.role,
+    };
   },
 
   getCatalog() {

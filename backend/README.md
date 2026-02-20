@@ -19,6 +19,11 @@ Server starts at `http://localhost:4000` by default.
 - On first start, seed data is inserted for users, spots, catalog items, and a sample order.
 - New orders are validated against DB data (known `spotId`, `userId`, `productId`) and item pricing is always derived from catalog prices in the database.
 
+### Issue #28: Secure credential storage and verification
+
+- Passwords are stored as salted `scrypt` hashes (not plaintext).
+- Legacy plaintext user passwords are auto-migrated to hashed values on successful login.
+
 ## Available endpoints
 
 - `GET /api/health`
