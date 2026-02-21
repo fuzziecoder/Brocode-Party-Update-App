@@ -3,6 +3,7 @@ import {
   useState,
   useEffect,
   useContext,
+  useRef,
   ReactNode,
 } from "react";
 import { useAuth } from "../hooks/useAuth";
@@ -34,12 +35,6 @@ interface ChatContextType {
 const ChatContext = createContext<ChatContextType | null>(null);
 
 /* -------------------------------------------------------------------------- */
-/* Storage key */
-/* -------------------------------------------------------------------------- */
-
-const CHAT_STORAGE_KEY = "brocode_chat_messages";
-
-/* -------------------------------------------------------------------------- */
 /* Provider */
 /* -------------------------------------------------------------------------- */
 
@@ -55,6 +50,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isChatActive, setIsChatActive] = useState(false);
   const [loading, setLoading] = useState(true);
+  const isChatActiveRef = useRef(false);
+  const currentUserIdsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    isChatActiveRef.current = isChatActive;
+  }, [isChatActive]);
+
+  useEffect(() => {
+    currentUserIdsRef.current = [user?.id, profile?.id].filter(Boolean) as string[];
+  }, [user?.id, profile?.id]);
 
   /* ------------------------------------------------------------------------ */
   /* Load messages */
@@ -137,7 +142,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                   profile_pic_url: newMsg.profiles?.profile_pic_url || 'https://api.dicebear.com/7.x/thumbs/svg?seed=default',
                 },
               };
-              setMessages((prev) => [...prev, chatMessage]);
+
+              setMessages((prev) => {
+                if (prev.some((existing) => existing.id === chatMessage.id)) {
+                  return prev;
+                }
+
+                return [...prev, chatMessage];
+              });
+
+              const isOwnMessage = currentUserIdsRef.current.includes(chatMessage.user_id);
+              if (!isOwnMessage && !isChatActiveRef.current) {
+                setUnreadCount((prev) => prev + 1);
+              }
             }
           } else if (payload.eventType === 'DELETE') {
             setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
@@ -150,18 +167,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       supabase.removeChannel(channel);
     };
   }, []);
-
-  // Removed localStorage persistence - using Supabase now
-
-  /* ------------------------------------------------------------------------ */
-  /* Unread count logic */
-  /* ------------------------------------------------------------------------ */
-
-  useEffect(() => {
-    if (!isChatActive && messages.length > 0) {
-      setUnreadCount((prev) => prev + 1);
-    }
-  }, [messages, isChatActive]);
 
   const setChatActive = (isActive: boolean) => {
     setIsChatActive(isActive);
@@ -298,22 +303,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error;
 
-      // Message will be added via real-time subscription
-      // But we can also add it immediately for better UX
-      if (data) {
-        const chatMessage: ChatMessage = {
-          id: data.id,
-          user_id: data.user_id,
-          content_text: data.content_text,
-          content_image_urls: data.content_image_urls || [],
-          created_at: data.created_at,
-          reactions: data.reactions || {},
-          profiles: {
-            name: data.profiles?.name || profile?.name || 'Unknown',
-            profile_pic_url: data.profiles?.profile_pic_url || profile?.profile_pic_url || 'https://api.dicebear.com/7.x/thumbs/svg?seed=default',
-          },
-        };
-        setMessages((prev) => [...prev, chatMessage]);
+      // Message is added via real-time subscription to avoid duplicates.
+      if (!data) {
+        throw new Error('Failed to create chat message');
       }
 
       if (profile) {
