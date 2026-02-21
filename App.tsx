@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -11,19 +11,25 @@ import { NotificationsProvider } from "./contexts/NotificationsContext";
 import { ChatProvider } from "./contexts/ChatContext";
 import { PaymentProvider } from "./contexts/PaymentContext";
 
-import SplashPage from "./pages/SplashPage";
-import LoginPage from "./pages/LoginPage";
-import HomePage from "./pages/HomePage";
-import PaymentPage from "./pages/PaymentPage";
-import HistoryPage from "./pages/HistoryPage";
-import NotificationsPage from "./pages/NotificationsPage";
-import ProfilePage from "./pages/ProfilePage";
-import ChatPage from "./pages/ChatPage";
-import DrinksPage from "./pages/DrinksPage";
+const SplashPage = lazy(() => import("./pages/SplashPage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const HomePage = lazy(() => import("./pages/HomePage"));
+const PaymentPage = lazy(() => import("./pages/PaymentPage"));
+const HistoryPage = lazy(() => import("./pages/HistoryPage"));
+const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const ChatPage = lazy(() => import("./pages/ChatPage"));
+const DrinksPage = lazy(() => import("./pages/DrinksPage"));
 
-import DashboardLayout from "./components/layout/DashboardLayout";
-import ProtectedRoute from "./components/auth/ProtectedRoute";
-import TargetCursor from "./components/common/TargetCursor";
+const DashboardLayout = lazy(() => import("./components/layout/DashboardLayout"));
+const ProtectedRoute = lazy(() => import("./components/auth/ProtectedRoute"));
+const TargetCursor = lazy(() => import("./components/common/TargetCursor"));
+
+const RouteFallback: React.FC = () => (
+  <div className="min-h-screen flex items-center justify-center bg-[#1a1a1a] text-white">
+    Loading...
+  </div>
+);
 
 const App: React.FC = () => {
   return (
@@ -31,39 +37,41 @@ const App: React.FC = () => {
       <NotificationsProvider>
         <PaymentProvider>
           <ChatProvider>
-            <TargetCursor
-              spinDuration={2}
-              hideDefaultCursor
-              parallaxOn
-              hoverDuration={0.2}
-            />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<SplashPage />} />
-                <Route path="/login" element={<LoginPage />} />
+            <Suspense fallback={<RouteFallback />}>
+              <TargetCursor
+                spinDuration={2}
+                hideDefaultCursor
+                parallaxOn
+                hoverDuration={0.2}
+              />
+              <BrowserRouter>
+                <Routes>
+                  <Route path="/" element={<SplashPage />} />
+                  <Route path="/login" element={<LoginPage />} />
 
-                <Route
-                  path="/dashboard"
-                  element={
-                    <ProtectedRoute>
-                      <DashboardLayout />
-                    </ProtectedRoute>
-                  }
-                >
-                  <Route index element={<Navigate to="home" replace />} />
-                  <Route path="home" element={<HomePage />} />
-                  <Route path="payment" element={<PaymentPage />} />
-                  <Route path="drinks" element={<DrinksPage />} />
-                  <Route path="history" element={<HistoryPage />} />
-                  <Route path="notifications" element={<NotificationsPage />} />
-                  <Route path="chat" element={<ChatPage />} />
-                  <Route path="profile" element={<ProfilePage />} />
-                  <Route path="profile/:userId" element={<ProfilePage />} />
-                </Route>
+                  <Route
+                    path="/dashboard"
+                    element={
+                      <ProtectedRoute>
+                        <DashboardLayout />
+                      </ProtectedRoute>
+                    }
+                  >
+                    <Route index element={<Navigate to="home" replace />} />
+                    <Route path="home" element={<HomePage />} />
+                    <Route path="payment" element={<PaymentPage />} />
+                    <Route path="drinks" element={<DrinksPage />} />
+                    <Route path="history" element={<HistoryPage />} />
+                    <Route path="notifications" element={<NotificationsPage />} />
+                    <Route path="chat" element={<ChatPage />} />
+                    <Route path="profile" element={<ProfilePage />} />
+                    <Route path="profile/:userId" element={<ProfilePage />} />
+                  </Route>
 
-                <Route path="*" element={<Navigate to="/" />} />
-              </Routes>
-            </BrowserRouter>
+                  <Route path="*" element={<Navigate to="/" />} />
+                </Routes>
+              </BrowserRouter>
+            </Suspense>
           </ChatProvider>
         </PaymentProvider>
       </NotificationsProvider>
