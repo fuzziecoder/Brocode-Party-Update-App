@@ -16,7 +16,7 @@ import { supabase } from "../services/supabase";
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
-  login: (identifier: string, password: string) => Promise<void>;
+  login: (identifier: string, password: string, orgCode?: string) => Promise<void>;
   logout: () => void;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   loading: boolean;
@@ -54,7 +54,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   /* Login */
   /* ------------------------------------------------------------------------ */
 
-  const login = async (identifier: string, password: string) => {
+  const login = async (identifier: string, password: string, orgCode?: string) => {
     setLoading(true);
 
     try {
@@ -62,12 +62,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const cleanIdentifier = identifier.replace(/\D/g, '').length === 10 ? identifier.replace(/\D/g, '') : identifier;
       
       // First try to get profile from Supabase
-      const { data: profiles, error: profileError } = await supabase
+      let profileQuery = supabase
         .from('profiles')
         .select('*')
         .or(`email.eq.${identifier},phone.eq.${cleanIdentifier},username.eq.${identifier}`)
-        .eq('password', password)
-        .single();
+        .eq('password', password);
+
+      if (orgCode?.trim()) {
+        profileQuery = profileQuery.eq('org_code', orgCode.trim());
+      }
+
+      const { data: profiles, error: profileError } = await profileQuery.single();
 
       if (!profileError && profiles) {
         // Found in Supabase - use UUID from database
@@ -94,7 +99,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Fallback to mockApi for development
     const { user: loggedInUser, profile: userProfile } =
-      await mockApi.login(identifier, password);
+      await mockApi.login(identifier, password, orgCode);
 
     // If using mockApi, try to find the UUID in Supabase
     try {

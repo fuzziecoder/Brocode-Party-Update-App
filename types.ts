@@ -35,6 +35,8 @@ export interface UserProfile {
   otpExpiry?: string;
   latitude?: number;
   longitude?: number;
+  org_code?: string;
+  management_name?: string;
 }
 
 export interface Spot {
@@ -50,6 +52,7 @@ export interface Spot {
   latitude?: number;
   longitude?: number;
   members?: UserProfile[];
+  org_code?: string;
 }
 
 export interface Drink {

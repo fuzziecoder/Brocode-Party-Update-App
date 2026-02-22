@@ -46,6 +46,8 @@ let USERS_DB: Record<string, UserProfile> = {
     location: "Attibele",
     profile_pic_url: DEFAULT_AVATARS[0],
     isVerified: true,
+    org_code: '0001',
+    management_name: 'Brocode HQ',
   },
   dhanush: {
     id: "dhanush",
@@ -57,6 +59,8 @@ let USERS_DB: Record<string, UserProfile> = {
     location: "Attibele",
     profile_pic_url: DEFAULT_AVATARS[1],
     isVerified: true,
+    org_code: '0001',
+    management_name: 'Brocode HQ',
   },
   godwin: {
     id: "godwin",
@@ -68,6 +72,8 @@ let USERS_DB: Record<string, UserProfile> = {
     location: "Attibele",
     profile_pic_url: DEFAULT_AVATARS[2],
     isVerified: true,
+    org_code: '0001',
+    management_name: 'Brocode HQ',
   },
   tharun: {
     id: "tharun",
@@ -79,6 +85,8 @@ let USERS_DB: Record<string, UserProfile> = {
     location: "Attibele",
     profile_pic_url: DEFAULT_AVATARS[3],
     isVerified: true,
+    org_code: '0001',
+    management_name: 'Brocode HQ',
   },
   sanjay: {
     id: "sanjay",
@@ -90,6 +98,8 @@ let USERS_DB: Record<string, UserProfile> = {
     location: "Attibele",
     profile_pic_url: DEFAULT_AVATARS[0],
     isVerified: true,
+    org_code: '0001',
+    management_name: 'Brocode HQ',
   },
   soundar: {
     id: "soundar",
@@ -101,6 +111,8 @@ let USERS_DB: Record<string, UserProfile> = {
     location: "Attibele",
     profile_pic_url: DEFAULT_AVATARS[1],
     isVerified: true,
+    org_code: '0001',
+    management_name: 'Brocode HQ',
   },
   jagadeesh: {
     id: "jagadeesh",
@@ -112,6 +124,8 @@ let USERS_DB: Record<string, UserProfile> = {
     location: "Attibele",
     profile_pic_url: DEFAULT_AVATARS[2],
     isVerified: true,
+    org_code: '0001',
+    management_name: 'Brocode HQ',
   },
   ram: {
     id: "ram",
@@ -123,6 +137,8 @@ let USERS_DB: Record<string, UserProfile> = {
     location: "Attibele",
     profile_pic_url: DEFAULT_AVATARS[3],
     isVerified: true,
+    org_code: '0001',
+    management_name: 'Brocode HQ',
   },
   lingesh: {
     id: "lingesh",
@@ -134,6 +150,8 @@ let USERS_DB: Record<string, UserProfile> = {
     location: "Attibele",
     profile_pic_url: DEFAULT_AVATARS[0],
     isVerified: true,
+    org_code: '0001',
+    management_name: 'Brocode HQ',
   },
 };
 
@@ -297,7 +315,8 @@ export const mockApi = {
 
   async login(
     identifier: string,
-    password: string
+    password: string,
+    orgCode?: string
   ): Promise<{ user: User; profile: UserProfile }> {
     await delay(300);
 
@@ -309,7 +328,8 @@ export const mockApi = {
         (u.email === identifier ||
           u.phone === cleanIdentifier ||
           u.username === identifier) &&
-        u.password === password
+        u.password === password &&
+        (!orgCode?.trim() || u.org_code === orgCode.trim())
     );
 
     if (!profile) throw new Error("Invalid credentials");

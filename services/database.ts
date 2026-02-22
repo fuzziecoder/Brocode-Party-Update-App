@@ -7,17 +7,22 @@ import { Spot, Invitation, Payment, InvitationStatus, PaymentStatus, UserProfile
 
 export const spotService = {
   // Get upcoming spot (date >= today)
-  async getUpcomingSpot(): Promise<Spot | null> {
+  async getUpcomingSpot(orgCode?: string): Promise<Spot | null> {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('spots')
       .select('*')
       .gte('date', today)
       .order('date', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+
+    if (orgCode?.trim()) {
+      query = query.eq('org_code', orgCode.trim());
+    }
+
+    const { data, error } = await query.maybeSingle();
 
     if (error) {
       if (error.code === 'PGRST116') {
@@ -35,14 +40,20 @@ export const spotService = {
   },
 
   // Get all upcoming spots
-  async getUpcomingSpots(): Promise<Spot[]> {
+  async getUpcomingSpots(orgCode?: string): Promise<Spot[]> {
     const today = new Date().toISOString().split('T')[0];
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('spots')
       .select('*')
       .gte('date', today)
       .order('date', { ascending: true });
+
+    if (orgCode?.trim()) {
+      query = query.eq('org_code', orgCode.trim());
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching upcoming spots:', error);
@@ -53,14 +64,20 @@ export const spotService = {
   },
 
   // Get past spots (date < today)
-  async getPastSpots(): Promise<Spot[]> {
+  async getPastSpots(orgCode?: string): Promise<Spot[]> {
     const today = new Date().toISOString().split('T')[0];
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('spots')
       .select('*')
       .lt('date', today)
       .order('date', { ascending: false });
+
+    if (orgCode?.trim()) {
+      query = query.eq('org_code', orgCode.trim());
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       if (error.message?.includes('relation') || error.message?.includes('does not exist')) {
@@ -93,6 +110,7 @@ export const spotService = {
         created_by: spotData.created_by,
         description: spotData.description || '',
         feedback: spotData.feedback || '',
+        org_code: spotData.org_code,
         latitude: spotData.latitude,
         longitude: spotData.longitude,
       })
@@ -464,6 +482,8 @@ export const profileService = {
     password: string;
     profile_pic_url?: string;
     role?: string;
+    org_code?: string;
+    management_name?: string;
   }): Promise<UserProfile> {
     const { data, error } = await supabase
       .from('profiles')
@@ -475,6 +495,8 @@ export const profileService = {
         password: profileData.password,
         profile_pic_url: profileData.profile_pic_url || 'https://api.dicebear.com/7.x/thumbs/svg?seed=default',
         role: profileData.role || 'user',
+        org_code: profileData.org_code,
+        management_name: profileData.management_name,
         location: 'Broville',
         is_verified: true,
       })
@@ -1103,12 +1125,18 @@ export const notificationService = {
   },
 
   // Create notifications for all users
-  async createNotificationForAllUsers(title: string, message: string): Promise<void> {
+  async createNotificationForAllUsers(title: string, message: string, orgCode?: string): Promise<void> {
     try {
       // Get all users
-      const { data: allUsers, error: usersError } = await supabase
+      let usersQuery = supabase
         .from('profiles')
         .select('id');
+
+      if (orgCode?.trim()) {
+        usersQuery = usersQuery.eq('org_code', orgCode.trim());
+      }
+
+      const { data: allUsers, error: usersError } = await usersQuery;
 
       if (usersError || !allUsers || allUsers.length === 0) {
         console.error('Error fetching users for notifications:', usersError);

@@ -24,6 +24,8 @@ type FormData = {
   mobileNumber: string;
   email: string;
   username: string;
+  orgCode: string;
+  managementName: string;
 };
 
 const formatMobile = (val: string) => {
@@ -53,6 +55,8 @@ const LoginPage: React.FC = () => {
     newPassword: '',
     email: '',
     username: '',
+    orgCode: '',
+    managementName: '',
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
@@ -110,6 +114,13 @@ const LoginPage: React.FC = () => {
       case 'username':
         if (!value.trim()) error = 'Username is required';
         break;
+      case 'orgCode':
+        if (!value.trim()) error = 'Org Code is required';
+        else if (!/^\d{4}$/.test(value.trim())) error = 'Org Code must be 4 digits';
+        break;
+      case 'managementName':
+        if (view === 'mobile-setup' && !value.trim()) error = 'Management name is required';
+        break;
     }
     return error;
   };
@@ -134,7 +145,7 @@ const LoginPage: React.FC = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     clearMessages();
-    const fields = authMethod === 'email' ? ['loginEmail', 'loginPassword'] : ['loginMobile', 'loginPassword'];
+    const fields = authMethod === 'email' ? ['loginEmail', 'loginPassword', 'orgCode'] : ['loginMobile', 'loginPassword', 'orgCode'];
     let isValid = true;
     const newErrors: any = {};
     fields.forEach(f => {
@@ -147,7 +158,7 @@ const LoginPage: React.FC = () => {
     // Strip formatting from phone number for login
     let identifier = authMethod === 'email' ? formData.loginEmail : formData.loginMobile.replace(/\D/g, '');
     try {
-      await login(identifier, formData.loginPassword);
+      await login(identifier, formData.loginPassword, formData.orgCode.trim());
       navigate('/dashboard/home');
     } catch (err: any) {
       setApiError(err.message || 'Login failed.');
@@ -228,7 +239,9 @@ const LoginPage: React.FC = () => {
     const e1 = validateField('email', formData.email);
     const e2 = validateField('username', formData.username);
     const e3 = validateField('newPassword', formData.newPassword);
-    if (e1 || e2 || e3) { setErrors({ email: e1, username: e2, newPassword: e3 }); return; }
+    const e4 = validateField('orgCode', formData.orgCode);
+    const e5 = validateField('managementName', formData.managementName);
+    if (e1 || e2 || e3 || e4 || e5) { setErrors({ email: e1, username: e2, newPassword: e3, orgCode: e4, managementName: e5 }); return; }
 
     // Check username uniqueness
     try {
@@ -255,10 +268,12 @@ const LoginPage: React.FC = () => {
         password: formData.newPassword,
         profile_pic_url: DEFAULT_AVATARS[Math.floor(Math.random() * DEFAULT_AVATARS.length)],
         role: 'user',
+        org_code: formData.orgCode.trim(),
+        management_name: formData.managementName.trim(),
       });
 
       // Auto-login after registration
-      await login(phoneDigits, formData.newPassword);
+      await login(phoneDigits, formData.newPassword, formData.orgCode.trim());
       setSuccess('Account created! Welcome to the squad.');
       setTimeout(() => navigate('/dashboard/home'), 1500);
     } catch (err: any) {
@@ -304,6 +319,7 @@ const LoginPage: React.FC = () => {
                       <div className="absolute right-4 top-10 text-orange-400 flex items-center gap-1"><AlertCircle size={14} /><span className="text-[10px] font-bold">FORMAT?</span></div>
                     )}
                   </div>
+                  <Input name="orgCode" label="Org Code" type="text" value={formData.orgCode} onChange={handleChange} error={errors.orgCode} icon={<User size={16} />} placeholder="4-digit code" />
                   <Input name="loginPassword" label="Password" type={showPassword ? 'text' : 'password'} value={formData.loginPassword} onChange={handleChange} error={errors.loginPassword} icon={<Lock size={16} />} rightIcon={showPassword ? <EyeOff size={16} /> : <Eye size={16} />} onRightIconClick={() => setShowPassword(!showPassword)} />
                   <div className="flex justify-end px-1"><button type="button" onClick={() => setView('forgot')} className="text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors">Forgot Password?</button></div>
                   <Button type="submit" className="w-full py-4 uppercase tracking-widest font-black" disabled={loading}>Enter Squad</Button>
@@ -317,6 +333,7 @@ const LoginPage: React.FC = () => {
                 <h1 className="text-3xl font-black text-white tracking-tighter mb-8">MOBILE</h1>
                 <form className="space-y-6" onSubmit={handleLogin} noValidate>
                   <Input name="loginMobile" label="Phone" type="tel" value={formData.loginMobile} onChange={handleChange} error={errors.loginMobile} icon={<Smartphone size={16} />} placeholder="(000) 000-0000" />
+                  <Input name="orgCode" label="Org Code" type="text" value={formData.orgCode} onChange={handleChange} error={errors.orgCode} icon={<User size={16} />} placeholder="4-digit code" />
                   <Input name="loginPassword" label="Password" type={showPassword ? 'text' : 'password'} value={formData.loginPassword} onChange={handleChange} error={errors.loginPassword} icon={<Lock size={16} />} rightIcon={showPassword ? <EyeOff size={16} /> : <Eye size={16} />} onRightIconClick={() => setShowPassword(!showPassword)} />
                   <Button type="submit" className="w-full py-4 uppercase tracking-widest font-black" disabled={loading}>Join Meetup</Button>
                   <div className="text-center"><button type="button" onClick={() => setView('mobile-register')} className="text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors">Create Account</button></div>
@@ -366,6 +383,8 @@ const LoginPage: React.FC = () => {
                 <form className="space-y-6" onSubmit={handleMobileSetup} noValidate>
                   <Input name="email" label="Email Address" type="email" value={formData.email} onChange={handleChange} error={errors.email} icon={<Mail size={16} />} placeholder="john@doe.com" />
                   <Input name="username" label="Username" type="text" value={formData.username} onChange={handleChange} error={errors.username} icon={<AtSign size={16} />} placeholder="johndoe" />
+                  <Input name="managementName" label="Management Name" type="text" value={formData.managementName} onChange={handleChange} error={errors.managementName} icon={<User size={16} />} placeholder="Team/Org name" />
+                  <Input name="orgCode" label="Org Code" type="text" value={formData.orgCode} onChange={handleChange} error={errors.orgCode} icon={<User size={16} />} placeholder="4-digit code" />
                   <div className="space-y-3">
                     <Input name="newPassword" label="Password" type="password" value={formData.newPassword} onChange={handleChange} error={errors.newPassword} icon={<Lock size={16} />} />
                     <PasswordStrength password={formData.newPassword} />
