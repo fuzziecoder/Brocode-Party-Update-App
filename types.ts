@@ -35,6 +35,18 @@ export interface UserProfile {
   otpExpiry?: string;
   latitude?: number;
   longitude?: number;
+  is_sponsor?: boolean;
+  sponsor_count?: number;
+}
+
+export interface SpotSponsor {
+  id: string;
+  spot_id: string;
+  sponsor_id: string;
+  amount_covered: number;
+  message?: string;
+  created_at?: string;
+  sponsor?: UserProfile;
 }
 
 export interface Spot {
@@ -50,6 +62,9 @@ export interface Spot {
   latitude?: number;
   longitude?: number;
   members?: UserProfile[];
+  is_sponsored?: boolean;
+  sponsored_by?: string;
+  sponsor?: SpotSponsor;
 }
 
 export interface Drink {
@@ -163,7 +178,7 @@ export interface ChatMessage {
   content_text?: string;
   content_image_urls?: string[];
   created_at: string; // ISO String
-  profiles: Pick<UserProfile, 'name' | 'profile_pic_url'>; // Joined data
+  profiles: Pick<UserProfile, 'name' | 'profile_pic_url' | 'is_sponsor' | 'sponsor_count'>; // Joined data
   reactions?: Record<string, string[]>; // e.g. { '👍': ['user_id_1', 'user_id_2'] }
 }
 

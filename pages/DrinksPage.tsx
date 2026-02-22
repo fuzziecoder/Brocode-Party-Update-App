@@ -5,10 +5,11 @@ import Card from "../components/common/Card";
 import Button from "../components/common/Button";
 import Modal from "../components/common/Modal";
 import Input from "../components/common/Input";
-import { spotService, paymentService, drinkService, cigaretteService, foodService, drinkBrandService, userDrinkSelectionService } from "../services/database";
+import { spotService, paymentService, drinkService, cigaretteService, foodService, drinkBrandService, userDrinkSelectionService, sponsorService } from "../services/database";
 import { supabase } from "../services/supabase";
 import { Plus, ThumbsUp, Trash2, Loader2, Image as ImageIcon, X, Camera, ShoppingCart, Minus, Check, Wine, Search, Menu, ArrowLeft, Star, Edit, Utensils, Download } from "lucide-react";
 import ShinyText from "../components/common/ShinyText";
+import SponsorBadge from "../components/common/SponsorBadge";
 
 const DrinksPage: React.FC = () => {
   const { profile } = useAuth();
@@ -21,6 +22,7 @@ const DrinksPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isPaid, setIsPaid] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
+  const [spotSponsor, setSpotSponsor] = useState<any>(null);
 
   // UI State
   const [activeSection, setActiveSection] = useState<'browse' | 'checkout' | 'detail'>('browse');
@@ -130,6 +132,8 @@ const DrinksPage: React.FC = () => {
       setSpot(spotData);
 
       if (spotData) {
+        const sponsor = await sponsorService.getSponsor(spotData.id);
+        setSpotSponsor(sponsor);
         let userId: string;
         try {
           userId = await getUserIdAsUUID(profile.id);
@@ -191,6 +195,7 @@ const DrinksPage: React.FC = () => {
       } else {
         setDrinks([]);
         setIsPaid(false);
+        setSpotSponsor(null);
       }
     } catch (error: any) {
       console.error("Error loading drinks data:", error);
@@ -620,7 +625,7 @@ const DrinksPage: React.FC = () => {
     }
   };
 
-  const totalCartAmount = userSelections.reduce((sum, sel) => sum + sel.total_price, 0);
+  const totalCartAmount = spotSponsor ? 0 : userSelections.reduce((sum, sel) => sum + sel.total_price, 0);
   const cartItemCount = userSelections.reduce((sum, sel) => sum + sel.quantity, 0);
 
   const categories = ['all', 'wine', 'beer', 'spirits'];
@@ -741,6 +746,14 @@ const DrinksPage: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+
+  const sponsorBanner = spotSponsor ? (
+    <div className="mb-4 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-between gap-3">
+      <p className="text-sm text-yellow-100">🎉 This spot is sponsored by <strong>{spotSponsor.sponsor?.name || 'A Bro'}</strong>! Everyone pays Rs.0</p>
+      <SponsorBadge size="sm" showLabel={false} count={spotSponsor.sponsor?.sponsor_count || 0} />
+    </div>
+  ) : null;
+
   // Safety check: don't render if profile is not available yet
   if (!profile) {
     return (
@@ -803,6 +816,7 @@ const DrinksPage: React.FC = () => {
     return (
       <div className="space-y-6 pb-20 max-w-6xl mx-auto px-4">
         <h1 className="text-2xl md:text-3xl font-bold">Bar Menu</h1>
+        {sponsorBanner}
         <Card className="p-8 text-center">
           <p className="text-gray-400 mb-4">You need to complete payment first to access the bar.</p>
           <Button onClick={() => window.location.href = '/dashboard/payment'}>Go to Payment</Button>
@@ -1705,6 +1719,7 @@ const DrinksPage: React.FC = () => {
         </div>
 
         <div className="max-w-7xl mx-auto px-4 py-6">
+          {sponsorBanner}
           <h1 className="text-2xl md:text-3xl font-bold mb-6">Checkout</h1>
 
           {/* Order List */}

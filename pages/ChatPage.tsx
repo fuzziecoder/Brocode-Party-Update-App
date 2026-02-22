@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as ReactRouterDOM from 'react-router-dom';
 import { useChat } from '../contexts/ChatContext';
+import SponsorBadge from '../components/common/SponsorBadge';
 
 const PhotoGallery: React.FC<{ urls: string[] }> = ({ urls }) => {
     if (!urls || urls.length === 0) return null;
@@ -199,6 +200,7 @@ const ChatPage: React.FC = () => {
                                                 onClick={() => window.location.href = `/dashboard/profile/${msg.user_id}`}
                                             >
                                                 {msg.profiles.name}
+                                                {msg.profiles.is_sponsor && <SponsorBadge size="sm" count={msg.profiles.sponsor_count || 0} />}
                                             </span>
                                         )}
 
