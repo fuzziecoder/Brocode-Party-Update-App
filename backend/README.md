@@ -24,6 +24,16 @@ Server starts at `http://localhost:4000` by default.
 - Passwords are stored as salted `scrypt` hashes (not plaintext).
 - Legacy plaintext user passwords are auto-migrated to hashed values on successful login.
 
+### Issue #29: Protect login endpoint from brute-force attempts
+
+- Login is now rate-limited per `IP + username` key.
+- Defaults: 5 failed attempts within 15 minutes triggers a 15 minute temporary block (`429`).
+- Configure via env vars:
+  - `LOGIN_RATE_LIMIT_MAX_ATTEMPTS`
+  - `LOGIN_RATE_LIMIT_WINDOW_MS`
+  - `LOGIN_RATE_LIMIT_BLOCK_MS`
+
+
 ## Available endpoints
 
 - `GET /api/health`
