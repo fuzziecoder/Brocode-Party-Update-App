@@ -156,6 +156,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 setUnreadCount((prev) => prev + 1);
               }
             }
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedMessage = payload.new;
+
+            setMessages((prev) =>
+              prev.map((message) => {
+                if (message.id !== updatedMessage.id) {
+                  return message;
+                }
+
+                return {
+                  ...message,
+                  content_text: updatedMessage.content_text,
+                  content_image_urls: updatedMessage.content_image_urls || [],
+                  reactions: updatedMessage.reactions || {},
+                  created_at: updatedMessage.created_at,
+                };
+              })
+            );
           } else if (payload.eventType === 'DELETE') {
             setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
           }
