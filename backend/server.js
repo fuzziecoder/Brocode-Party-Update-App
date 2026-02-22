@@ -109,6 +109,28 @@ const server = createServer(async (req, res) => {
     sendJson(res, 200, orders);
     return;
   }
+  if (method === 'GET' && path.startsWith('/api/orders/')) {
+    console.log("I AM INSIDE ORDER ID ROUTE");
+  const orderId = path.replace('/api/orders/', '');
+
+ 
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    sendJson(res, 401, { error: 'Unauthorized' });
+    return;
+  }
+
+  const orders = database.getOrders({});
+  const order = orders.find(o => o.id === orderId);
+
+  if (!order) {
+    sendJson(res, 404, { error: `Order not found: ${orderId}` });
+    return;
+  }
+
+  sendJson(res, 200, order);
+  return;
+}
 
   if (method === 'POST' && path === '/api/orders') {
     try {
