@@ -34,6 +34,79 @@ const verifyPassword = (password, storedPassword) => {
   return timingSafeEqual(candidateHash, expectedHash);
 };
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
+    name TEXT NOT NULL,
+    role TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS spots (
+    id TEXT PRIMARY KEY,
+    location TEXT NOT NULL,
+    date TEXT NOT NULL,
+    host_user_id TEXT NOT NULL,
+    FOREIGN KEY (host_user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS catalog_items (
+    id TEXT PRIMARY KEY,
+    category TEXT NOT NULL,
+    name TEXT NOT NULL,
+    price REAL NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS orders (
+    id TEXT PRIMARY KEY,
+    spot_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    total_amount REAL NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (spot_id) REFERENCES spots(id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS order_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id TEXT NOT NULL,
+    product_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    unit_price REAL NOT NULL,
+    total REAL NOT NULL,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+  );
+`);
+
+const hasUsers = db.prepare('SELECT COUNT(*) AS count FROM users').get().count > 0;
+
+if (!hasUsers) {
+  const insertUser = db.prepare('INSERT INTO users (id, username, password, name, role) VALUES (?, ?, ?, ?, ?)');
+  insertUser.run('u-1', 'brocode', hashPassword('changeme'), 'Ram', 'admin');
+  insertUser.run('u-2', 'dhanush', hashPassword('changeme'), 'Dhanush', 'user');
+
+  const insertSpot = db.prepare('INSERT INTO spots (id, location, date, host_user_id) VALUES (?, ?, ?, ?)');
+  insertSpot.run('spot-2025-07-26', 'Attibele Toll Plaza', '2025-07-26T10:00:00.000Z', 'u-1');
+
+  const insertCatalogItem = db.prepare('INSERT INTO catalog_items (id, category, name, price) VALUES (?, ?, ?, ?)');
+  insertCatalogItem.run('d-1', 'drinks', 'Brocode Beer', 180);
+  insertCatalogItem.run('d-2', 'drinks', 'Kingfisher Beer', 170);
+  insertCatalogItem.run('f-1', 'food', 'Beef Biriyani', 220);
+  insertCatalogItem.run('f-2', 'food', 'Parotta', 30);
+  insertCatalogItem.run('c-1', 'cigarettes', 'Marlboro', 25);
+  insertCatalogItem.run('c-2', 'cigarettes', 'Classic', 20);
+
+  db.prepare(
+    'INSERT INTO orders (id, spot_id, user_id, total_amount, created_at) VALUES (?, ?, ?, ?, ?)'
+  ).run('ord-1', 'spot-2025-07-26', 'u-2', 360, '2025-07-26T10:30:00.000Z');
+
+  db.prepare(
+    `INSERT INTO order_items (order_id, product_id, name, quantity, unit_price, total)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run('ord-1', 'd-1', 'Brocode Beer', 2, 180, 360);
+}
 const seedData = () => ({
   users: [
     { id: 'u-1', username: 'brocode', password: hashPassword('changeme'), name: 'Ram', role: 'admin' },
@@ -122,6 +195,42 @@ const mapOrder = (order, items) => ({
     total: item.total,
   })),
 });
+
+const fetchOrderItemsByOrderIds = (orderIds) => {
+  if (orderIds.length === 0) return new Map();
+
+  const placeholders = orderIds.map(() => '?').join(',');
+  const rows = db
+    .prepare(
+      `SELECT order_id, product_id, name, quantity, unit_price, total
+       FROM order_items
+       WHERE order_id IN (${placeholders})
+       ORDER BY id ASC`
+    )
+    .all(...orderIds);
+
+  const itemsByOrderId = new Map();
+  rows.forEach((row) => {
+    if (!itemsByOrderId.has(row.order_id)) {
+      itemsByOrderId.set(row.order_id, []);
+    }
+    itemsByOrderId.get(row.order_id).push(row);
+  });
+
+  return itemsByOrderId;
+};
+
+const getCatalogItemByIdStatement = db.prepare(
+  'SELECT id, category, name, price FROM catalog_items WHERE id = ?'
+);
+
+const userExistsStatement = db.prepare('SELECT 1 AS found FROM users WHERE id = ? LIMIT 1');
+const spotExistsStatement = db.prepare('SELECT 1 AS found FROM spots WHERE id = ? LIMIT 1');
+const getUserByUsernameStatement = db.prepare('SELECT id, username, password, name, role FROM users WHERE username = ?');
+const updateUserPasswordStatement = db.prepare('UPDATE users SET password = ? WHERE id = ?');
+const deleteUserByIdStatement = db.prepare('DELETE FROM users WHERE id = ?');
+const deleteOrdersByUserIdStatement = db.prepare('DELETE FROM orders WHERE user_id = ?');
+const deleteSpotsByHostUserIdStatement = db.prepare('DELETE FROM spots WHERE host_user_id = ?');
 
 export const database = {
   getUserByCredentials(username, password) {
@@ -249,6 +358,21 @@ export const database = {
       totalAmount,
       createdAt,
     };
+  },
+
+  deleteUserCompletely(userId) {
+    db.exec('BEGIN');
+
+    try {
+      deleteOrdersByUserIdStatement.run(userId);
+      deleteSpotsByHostUserIdStatement.run(userId);
+      deleteUserByIdStatement.run(userId);
+
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
   },
 
   getBillBySpotId(spotId) {

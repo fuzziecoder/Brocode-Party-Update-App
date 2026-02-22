@@ -63,7 +63,7 @@ const sendJson = (res, statusCode, body) => {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
   });
   res.end(JSON.stringify(body));
 };
@@ -237,6 +237,24 @@ const server = createServer(async (req, res) => {
     const spotId = path.replace('/api/bills/', '');
     const bill = database.getBillBySpotId(spotId);
     sendJson(res, 200, bill);
+    return;
+  }
+
+  if (method === 'DELETE' && path.startsWith('/api/users/')) {
+    const userId = path.replace('/api/users/', '');
+
+    if (!userId) {
+      sendJson(res, 400, { error: 'userId is required' });
+      return;
+    }
+
+    if (!database.userExists(userId)) {
+      sendJson(res, 404, { error: `Unknown userId: ${userId}` });
+      return;
+    }
+
+    database.deleteUserCompletely(userId);
+    sendJson(res, 200, { success: true, deletedUserId: userId });
     return;
   }
 
