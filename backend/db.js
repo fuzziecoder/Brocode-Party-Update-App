@@ -53,7 +53,7 @@ db.exec(`
     location TEXT NOT NULL,
     date TEXT NOT NULL,
     host_user_id TEXT NOT NULL,
-    FOREIGN KEY (host_user_id) REFERENCES users(id)
+    FOREIGN KEY (host_user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS catalog_items (
@@ -70,7 +70,7 @@ db.exec(`
     total_amount REAL NOT NULL,
     created_at TEXT NOT NULL,
     FOREIGN KEY (spot_id) REFERENCES spots(id),
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS order_items (
@@ -160,6 +160,9 @@ const userExistsStatement = db.prepare('SELECT 1 AS found FROM users WHERE id = 
 const spotExistsStatement = db.prepare('SELECT 1 AS found FROM spots WHERE id = ? LIMIT 1');
 const getUserByUsernameStatement = db.prepare('SELECT id, username, password, name, role FROM users WHERE username = ?');
 const updateUserPasswordStatement = db.prepare('UPDATE users SET password = ? WHERE id = ?');
+const deleteUserByIdStatement = db.prepare('DELETE FROM users WHERE id = ?');
+const deleteOrdersByUserIdStatement = db.prepare('DELETE FROM orders WHERE user_id = ?');
+const deleteSpotsByHostUserIdStatement = db.prepare('DELETE FROM spots WHERE host_user_id = ?');
 
 export const database = {
   getUserByCredentials(username, password) {
@@ -301,6 +304,21 @@ export const database = {
       totalAmount,
       createdAt,
     };
+  },
+
+  deleteUserCompletely(userId) {
+    db.exec('BEGIN');
+
+    try {
+      deleteOrdersByUserIdStatement.run(userId);
+      deleteSpotsByHostUserIdStatement.run(userId);
+      deleteUserByIdStatement.run(userId);
+
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
   },
 
   getBillBySpotId(spotId) {

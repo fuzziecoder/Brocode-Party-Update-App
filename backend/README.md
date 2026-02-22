@@ -34,6 +34,7 @@ Server starts at `http://localhost:4000` by default.
 - `GET /api/orders?spotId=...&userId=...`
 - `POST /api/orders`
 - `GET /api/bills/:spotId`
+- `DELETE /api/users/:userId` (removes the user and all related records)
 
 ## Example login payload
 
