@@ -5,6 +5,7 @@ import Modal from '../components/common/Modal';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
 import { Spot, Moment, UserProfile } from '../types';
+import SponsorBadge from '../components/common/SponsorBadge';
 import { ArrowLeft, MoreHorizontal, Gift, Plus, Image as ImageIcon, X, Trash2, Camera, MapPin } from 'lucide-react';
 import * as ReactRouterDOM from 'react-router-dom';
 const { useNavigate, useParams } = ReactRouterDOM;
@@ -502,7 +503,10 @@ const ProfilePage: React.FC = () => {
                     />
                 </div>
 
-                <h1 className="text-4xl font-black text-white tracking-tighter">@{profile.username}</h1>
+                <div className="flex items-center gap-3">
+                    <h1 className="text-4xl font-black text-white tracking-tighter">@{profile.username}</h1>
+                    {profile.is_sponsor && <SponsorBadge size="sm" showLabel count={profile.sponsor_count || 0} />}
+                </div>
                 <p className="text-zinc-500 font-bold uppercase tracking-widest text-[10px] mt-2">{profile.name} • {profile.location}</p>
             </header>
 
@@ -568,9 +572,17 @@ const ProfilePage: React.FC = () => {
                                         <span className="text-[10px] font-black text-zinc-500 uppercase">Deployment Base</span>
                                         <span className="text-sm font-bold text-white uppercase">{profile.location}</span>
                                     </div>
-                                    <div className="flex justify-between items-center py-4">
+                                    <div className="flex justify-between items-center py-4 border-b border-white/5">
                                         <span className="text-[10px] font-black text-zinc-500 uppercase">Mission Count</span>
                                         <span className="text-sm font-bold text-white">{profile.mission_count || 0} Successful Ops</span>
+                                    </div>
+                                    <div className="flex justify-between items-center py-4">
+                                        <span className="text-[10px] font-black text-zinc-500 uppercase">Sponsor Status</span>
+                                        {profile.is_sponsor ? (
+                                            <SponsorBadge size="sm" showLabel count={profile.sponsor_count || 0} />
+                                        ) : (
+                                            <span className="text-sm font-bold text-zinc-400">Not yet a sponsor</span>
+                                        )}
                                     </div>
                                 </div>
                             </div>

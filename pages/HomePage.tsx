@@ -10,6 +10,7 @@ import {
   InvitationStatus,
   PaymentStatus,
   UserRole,
+  SpotSponsor,
 } from "../types";
 import Card from "../components/common/Card";
 import Button from "../components/common/Button";
@@ -17,7 +18,7 @@ import Modal from "../components/common/Modal";
 import Input from "../components/common/Input";
 import GlowButton from "../components/common/GlowButton";
 import Textarea from "../components/common/Textarea";
-import { spotService, invitationService, paymentService, notificationService, profileService } from "../services/database";
+import { spotService, invitationService, paymentService, notificationService, profileService, sponsorService } from "../services/database";
 import { supabase } from "../services/supabase";
 import { checkDatabaseSetup, getSetupInstructions } from "../services/dbCheck";
 import { useNotifications } from "../contexts/NotificationsContext";
@@ -25,6 +26,7 @@ import { format } from "date-fns";
 import ShinyText from "../components/common/ShinyText";
 import GradientText from "../components/common/GradientText";
 import StarBorder from "../components/common/StarBorder";
+import SponsorBadge from "../components/common/SponsorBadge";
 
 declare const google: any;
 
@@ -47,6 +49,10 @@ const HomePage: React.FC = () => {
     feedback: '',
   });
   const [dbSetupError, setDbSetupError] = useState<string | null>(null);
+  const [spotSponsor, setSpotSponsor] = useState<SpotSponsor | null>(null);
+  const [allProfiles, setAllProfiles] = useState<any[]>([]);
+  const [isSponsorModalOpen, setIsSponsorModalOpen] = useState(false);
+  const [sponsorForm, setSponsorForm] = useState({ sponsor_id: '', amount_covered: '', message: '' });
 
   const [newSpotData, setNewSpotData] = useState({
     location: "",
@@ -85,11 +91,19 @@ const HomePage: React.FC = () => {
       setSpot(spotData);
 
       if (spotData) {
-        const inv = await invitationService.getInvitations(spotData.id);
+        const [inv, sponsor] = await Promise.all([
+          invitationService.getInvitations(spotData.id),
+          sponsorService.getSponsor(spotData.id),
+        ]);
         setInvitations(inv);
+        setSpotSponsor(sponsor);
       } else {
         setInvitations([]);
+        setSpotSponsor(null);
       }
+
+      const profiles = await profileService.getAllProfiles();
+      setAllProfiles(profiles || []);
     } catch (err: any) {
       console.error("Error fetching data:", err);
       if (err.message?.includes('does not exist') || err.message?.includes('relation')) {
@@ -109,6 +123,7 @@ const HomePage: React.FC = () => {
     // Set up real-time subscriptions
     let spotChannel: any = null;
     let invitationChannel: any = null;
+    let sponsorChannel: any = null;
 
     if (spot) {
       // Subscribe to spot changes
@@ -126,6 +141,8 @@ const HomePage: React.FC = () => {
           }
         }
       });
+
+      sponsorChannel = sponsorService.subscribeToSponsors(() => fetchData());
 
       // Subscribe to invitation changes for this spot
       invitationChannel = invitationService.subscribeToInvitations(
@@ -157,6 +174,9 @@ const HomePage: React.FC = () => {
       }
       if (invitationChannel) {
         supabase.removeChannel(invitationChannel);
+      }
+      if (sponsorChannel) {
+        supabase.removeChannel(sponsorChannel);
       }
     };
   }, [fetchData, spot?.id, notify]);
@@ -621,6 +641,36 @@ const HomePage: React.FC = () => {
     );
   }
 
+
+  const handleAssignSponsor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!spot || !sponsorForm.sponsor_id || !sponsorForm.amount_covered) return;
+
+    try {
+      await sponsorService.sponsorSpot({
+        spot_id: spot.id,
+        sponsor_id: sponsorForm.sponsor_id,
+        amount_covered: Number(sponsorForm.amount_covered),
+        message: sponsorForm.message,
+      });
+      setIsSponsorModalOpen(false);
+      setSponsorForm({ sponsor_id: '', amount_covered: '', message: '' });
+      await fetchData();
+    } catch (error: any) {
+      alert(`Failed to assign sponsor: ${error.message || 'Please try again.'}`);
+    }
+  };
+
+  const handleRemoveSponsor = async () => {
+    if (!spot) return;
+    try {
+      await sponsorService.removeSponsor(spot.id);
+      await fetchData();
+    } catch (error: any) {
+      alert(`Failed to remove sponsor: ${error.message || 'Please try again.'}`);
+    }
+  };
+
   /* ----------------------------- UI ----------------------------- */
 
   return (
@@ -686,9 +736,23 @@ const HomePage: React.FC = () => {
                           day: 'numeric'
                         })} at {spot.timing}
                       </p>
+                      {spotSponsor && (
+                        <div className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/10 border border-yellow-500/30">
+                          <span>🎉 This spot is sponsored by <strong>{spotSponsor.sponsor?.name || 'A Bro'}</strong>!</span>
+                          <SponsorBadge size="sm" showLabel={false} count={spotSponsor.sponsor?.sponsor_count || 0} />
+                        </div>
+                      )}
                     </div>
                     {isAdmin && (
                       <div className="flex gap-2">
+                        <Button size="sm" variant="secondary" onClick={() => setIsSponsorModalOpen(true)}>
+                          Add Sponsor
+                        </Button>
+                        {spotSponsor && (
+                          <Button size="sm" variant="secondary" onClick={handleRemoveSponsor}>
+                            Remove Sponsor
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="secondary"
@@ -894,6 +958,42 @@ const HomePage: React.FC = () => {
           )}
         </>
       )}
+
+
+      <Modal
+        isOpen={isSponsorModalOpen}
+        onClose={() => setIsSponsorModalOpen(false)}
+        title="Add Sponsor"
+      >
+        <form onSubmit={handleAssignSponsor} className="space-y-4">
+          <div>
+            <label className="text-sm text-zinc-400">Sponsor</label>
+            <select
+              value={sponsorForm.sponsor_id}
+              onChange={(e) => setSponsorForm(prev => ({ ...prev, sponsor_id: e.target.value }))}
+              className="w-full mt-2 bg-zinc-900 border border-white/10 rounded-lg p-3"
+              required
+            >
+              <option value="">Select member</option>
+              {allProfiles.map((member) => (
+                <option key={member.id} value={member.id}>{member.name} (@{member.username})</option>
+              ))}
+            </select>
+          </div>
+          <Input
+            label="Amount Covered"
+            type="number"
+            value={sponsorForm.amount_covered}
+            onChange={(e) => setSponsorForm(prev => ({ ...prev, amount_covered: e.target.value }))}
+          />
+          <Textarea
+            label="Message"
+            value={sponsorForm.message}
+            onChange={(e) => setSponsorForm(prev => ({ ...prev, message: e.target.value }))}
+          />
+          <Button type="submit" className="w-full">Assign Sponsor</Button>
+        </form>
+      </Modal>
 
       {/* CREATE SPOT MODAL */}
       <Modal

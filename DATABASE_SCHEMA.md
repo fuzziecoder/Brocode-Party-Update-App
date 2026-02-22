@@ -336,3 +336,28 @@ VALUES (
 3. The `username` field has a UNIQUE constraint to ensure uniqueness
 4. All timestamps use `TIMESTAMP WITH TIME ZONE` for proper timezone handling
 5. Foreign key constraints ensure data integrity
+
+### 8. `spot_sponsors` table
+
+Stores a single sponsor assignment per spot.
+
+```sql
+CREATE TABLE spot_sponsors (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  spot_id UUID NOT NULL REFERENCES spots(id) ON DELETE CASCADE UNIQUE,
+  sponsor_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  amount_covered NUMERIC NOT NULL DEFAULT 0,
+  message TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE profiles
+  ADD COLUMN is_sponsor BOOLEAN DEFAULT false,
+  ADD COLUMN sponsor_count INTEGER DEFAULT 0;
+
+ALTER TABLE spots
+  ADD COLUMN is_sponsored BOOLEAN DEFAULT false,
+  ADD COLUMN sponsored_by UUID REFERENCES profiles(id) ON DELETE SET NULL;
+```
+
+A trigger on `spot_sponsors` should permanently mark the sponsor profile and increment `sponsor_count` whenever a new sponsorship is inserted.

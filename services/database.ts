@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Spot, Invitation, Payment, InvitationStatus, PaymentStatus, UserProfile, Drink, Attendance, Cigarette, Food, Notification, DrinkBrand, UserDrinkSelection } from '../types';
+import { Spot, Invitation, Payment, InvitationStatus, PaymentStatus, UserProfile, Drink, Attendance, Cigarette, Food, Notification, DrinkBrand, UserDrinkSelection, SpotSponsor, Moment } from '../types';
 
 /* -------------------------------------------------------------------------- */
 /* SPOTS */
@@ -1519,6 +1519,147 @@ export const userDrinkSelectionService = {
       console.error('Error deleting all user selections:', error);
       throw error;
     }
+  },
+};
+
+
+
+/* -------------------------------------------------------------------------- */
+/* SPONSORS */
+/* -------------------------------------------------------------------------- */
+
+export const sponsorService = {
+  async getSponsor(spotId: string): Promise<SpotSponsor | null> {
+    const { data, error } = await supabase
+      .from('spot_sponsors')
+      .select(`
+        *,
+        sponsor:sponsor_id (
+          id,
+          name,
+          username,
+          phone,
+          email,
+          role,
+          profile_pic_url,
+          location,
+          is_sponsor,
+          sponsor_count
+        )
+      `)
+      .eq('spot_id', spotId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching sponsor:', error);
+      throw error;
+    }
+
+    return data || null;
+  },
+
+  async sponsorSpot(data: {
+    spot_id: string;
+    sponsor_id: string;
+    amount_covered: number;
+    message?: string;
+  }): Promise<SpotSponsor> {
+    const { data: inserted, error } = await supabase
+      .from('spot_sponsors')
+      .upsert({
+        spot_id: data.spot_id,
+        sponsor_id: data.sponsor_id,
+        amount_covered: data.amount_covered,
+        message: data.message || null,
+      }, {
+        onConflict: 'spot_id'
+      })
+      .select(`
+        *,
+        sponsor:sponsor_id (
+          id,
+          name,
+          username,
+          phone,
+          email,
+          role,
+          profile_pic_url,
+          location,
+          is_sponsor,
+          sponsor_count
+        )
+      `)
+      .single();
+
+    if (error) {
+      console.error('Error assigning sponsor:', error);
+      throw error;
+    }
+
+    const { error: spotError } = await supabase
+      .from('spots')
+      .update({
+        is_sponsored: true,
+        sponsored_by: data.sponsor_id,
+      })
+      .eq('id', data.spot_id);
+
+    if (spotError) {
+      console.error('Error marking spot as sponsored:', spotError);
+      throw spotError;
+    }
+
+    return inserted;
+  },
+
+  async removeSponsor(spotId: string): Promise<void> {
+    const { error } = await supabase
+      .from('spot_sponsors')
+      .delete()
+      .eq('spot_id', spotId);
+
+    if (error) {
+      console.error('Error removing sponsor:', error);
+      throw error;
+    }
+
+    const { error: spotError } = await supabase
+      .from('spots')
+      .update({
+        is_sponsored: false,
+        sponsored_by: null,
+      })
+      .eq('id', spotId);
+
+    if (spotError) {
+      console.error('Error resetting spot sponsorship:', spotError);
+      throw spotError;
+    }
+  },
+
+  async getAllSponsors(): Promise<UserProfile[]> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('is_sponsor', true)
+      .order('sponsor_count', { ascending: false })
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching sponsor leaderboard:', error);
+      throw error;
+    }
+
+    return data || [];
+  },
+
+  subscribeToSponsors(callback: (payload: any) => void) {
+    return supabase
+      .channel('sponsor-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'spot_sponsors' }, callback)
+      .subscribe();
   },
 };
 
