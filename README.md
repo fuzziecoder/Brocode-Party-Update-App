@@ -83,6 +83,9 @@ BroCode Spot is a full-stack web application designed to streamline group orderi
    VITE_SUPABASE_URL=your_supabase_project_url
    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
    ```
+   ### Environment Validation
+   The backend validates environment variables at startup.
+   If required variables are missing or invalid, the server will stop immediately with a clear error message.
 
 4. **Set up Supabase**
    
