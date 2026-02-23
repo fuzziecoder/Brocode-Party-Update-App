@@ -179,27 +179,24 @@ const server = createServer(async (req, res) => {
     return;
   }
   if (method === 'GET' && path.startsWith('/api/orders/')) {
-    console.log("I AM INSIDE ORDER ID ROUTE");
-  const orderId = path.replace('/api/orders/', '');
+    const orderId = path.replace('/api/orders/', '');
 
- 
-  const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    sendJson(res, 401, { error: 'Unauthorized' });
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      sendJson(res, 401, { error: 'Unauthorized' });
+      return;
+    }
+
+    const order = database.getOrderById(orderId);
+
+    if (!order) {
+      sendJson(res, 404, { error: `Order not found: ${orderId}` });
+      return;
+    }
+
+    sendJson(res, 200, order);
     return;
   }
-
-  const orders = database.getOrders({});
-  const order = orders.find(o => o.id === orderId);
-
-  if (!order) {
-    sendJson(res, 404, { error: `Order not found: ${orderId}` });
-    return;
-  }
-
-  sendJson(res, 200, order);
-  return;
-}
 
   if (method === 'POST' && path === '/api/orders') {
     try {
@@ -263,5 +260,5 @@ const server = createServer(async (req, res) => {
 
 server.listen(port, () => {
   console.log(`Backend API running on http://localhost:${port}`);
-  console.log(`Using SQLite database at: ${dbPath}`);
+  console.log(`Using local database at: ${dbPath}`);
 });
