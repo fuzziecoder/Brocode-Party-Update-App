@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Spot, Invitation, Payment, InvitationStatus, PaymentStatus, UserProfile, Drink, Attendance, Cigarette, Food, Notification, DrinkBrand, UserDrinkSelection } from '../types';
+import { Spot, Invitation, Payment, InvitationStatus, PaymentStatus, UserProfile, Drink, Attendance, Cigarette, Food, Notification, DrinkBrand, UserDrinkSelection, Moment } from '../types';
 
 /* -------------------------------------------------------------------------- */
 /* SPOTS */
