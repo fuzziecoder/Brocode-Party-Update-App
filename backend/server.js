@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { URL } from 'node:url';
 import { database, dbPath } from './db.js';
+require("./env"); 
 
 const port = Number(process.env.PORT || 4000);
 
