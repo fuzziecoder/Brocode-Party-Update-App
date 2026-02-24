@@ -75,7 +75,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             *,
             profiles:user_id (
               name,
-              profile_pic_url
+              profile_pic_url,
+              is_sponsor,
+              sponsor_count
             )
           `)
           .order('created_at', { ascending: true });
@@ -92,6 +94,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           profiles: {
             name: msg.profiles?.name || 'Unknown',
             profile_pic_url: msg.profiles?.profile_pic_url || 'https://api.dicebear.com/7.x/thumbs/svg?seed=default',
+            is_sponsor: msg.profiles?.is_sponsor || false,
+            sponsor_count: msg.profiles?.sponsor_count || 0,
           },
         }));
 
@@ -123,7 +127,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 *,
                 profiles:user_id (
                   name,
-                  profile_pic_url
+                  profile_pic_url,
+                  is_sponsor,
+                  sponsor_count
                 )
               `)
               .eq('id', payload.new.id)
@@ -140,6 +146,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 profiles: {
                   name: newMsg.profiles?.name || 'Unknown',
                   profile_pic_url: newMsg.profiles?.profile_pic_url || 'https://api.dicebear.com/7.x/thumbs/svg?seed=default',
+                  is_sponsor: newMsg.profiles?.is_sponsor || false,
+                  sponsor_count: newMsg.profiles?.sponsor_count || 0,
                 },
               };
 
