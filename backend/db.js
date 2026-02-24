@@ -163,6 +163,21 @@ export const database = {
     );
   },
 
+  getUserById(userId) {
+    const user = state.users.find((entry) => entry.id === userId);
+
+    if (!user) {
+      return null;
+    }
+
+    return {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      role: user.role,
+    };
+  },
+
   userExists(userId) {
     return state.users.some((user) => user.id === userId);
   },
