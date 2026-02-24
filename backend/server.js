@@ -48,6 +48,33 @@ const clearRateLimitState = (key) => {
   loginAttempts.delete(key);
 };
 
+const parseBearerToken = (authHeader) => {
+  if (typeof authHeader !== 'string') {
+    return null;
+  }
+
+  const [scheme, token] = authHeader.trim().split(/\s+/, 2);
+  if (!scheme || !token || scheme.toLowerCase() !== 'bearer') {
+    return null;
+  }
+
+  return token;
+};
+
+const getUserFromAuthHeader = (authHeader) => {
+  const token = parseBearerToken(authHeader);
+  if (!token || !token.startsWith('demo-token-')) {
+    return null;
+  }
+
+  const userId = token.slice('demo-token-'.length);
+  if (!userId) {
+    return null;
+  }
+
+  return database.getUserById(userId);
+};
+
 const recordFailedLoginAttempt = (key) => {
   const now = Date.now();
   const state = getRateLimitState(key);
@@ -181,8 +208,8 @@ const server = createServer(async (req, res) => {
   if (method === 'GET' && path.startsWith('/api/orders/')) {
     const orderId = path.replace('/api/orders/', '');
 
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
+    const authedUser = getUserFromAuthHeader(req.headers.authorization);
+    if (!authedUser) {
       sendJson(res, 401, { error: 'Unauthorized' });
       return;
     }
@@ -191,6 +218,12 @@ const server = createServer(async (req, res) => {
 
     if (!order) {
       sendJson(res, 404, { error: `Order not found: ${orderId}` });
+      return;
+    }
+
+    const isAdmin = authedUser.role === 'admin';
+    if (!isAdmin && order.userId !== authedUser.id) {
+      sendJson(res, 403, { error: 'Forbidden' });
       return;
     }
 
