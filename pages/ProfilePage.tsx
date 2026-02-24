@@ -195,7 +195,7 @@ const ProfileForm: React.FC<{ onSave: () => void }> = ({ onSave }) => {
 const MomentForm: React.FC<{ onSave: () => void }> = ({ onSave }) => {
     const { user, profile } = useAuth();
     const [caption, setCaption] = useState('');
-    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [imagePreviews, setImagePreviews] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
 
     // Helper function to get UUID from profile ID
@@ -257,21 +257,37 @@ const MomentForm: React.FC<{ onSave: () => void }> = ({ onSave }) => {
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => setImagePreview(reader.result as string);
-            reader.readAsDataURL(file);
-        }
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        Promise.all(
+            files.map((file) => new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = () => reject(new Error('Failed to read selected image'));
+                reader.readAsDataURL(file);
+            }))
+        )
+            .then((newPreviews) => setImagePreviews((prev) => [...prev, ...newPreviews]))
+            .catch((error) => {
+                console.error('Error reading images:', error);
+                alert('Failed to read one or more selected images.');
+            });
+
+        e.target.value = '';
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!imagePreview || !user) return;
+        if (imagePreviews.length === 0 || !user) return;
         setLoading(true);
         try {
             const userId = await getUserIdAsUUID(user.id);
-            await momentService.createMoment({ user_id: userId, image_url: imagePreview, caption });
+            await Promise.all(
+                imagePreviews.map((imageUrl) =>
+                    momentService.createMoment({ user_id: userId, image_url: imageUrl, caption })
+                )
+            );
             onSave();
         } catch (error: any) {
             console.error('Error creating moment:', error);
@@ -284,21 +300,31 @@ const MomentForm: React.FC<{ onSave: () => void }> = ({ onSave }) => {
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
             <div className="flex flex-col items-center gap-4">
-                {imagePreview ? (
-                    <div className="relative w-full aspect-square rounded-3xl overflow-hidden border-2 border-indigo-500/30">
-                        <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" />
-                        <button onClick={() => setImagePreview(null)} className="absolute top-4 right-4 bg-black/50 p-2 rounded-full"><X size={20} /></button>
+                {imagePreviews.length > 0 ? (
+                    <div className="w-full grid grid-cols-2 gap-3">
+                        {imagePreviews.map((preview, index) => (
+                            <div key={`${preview}-${index}`} className="relative aspect-square rounded-3xl overflow-hidden border-2 border-indigo-500/30">
+                                <img src={preview} className="w-full h-full object-cover" alt="Preview" />
+                                <button type="button" onClick={() => setImagePreviews((prev) => prev.filter((_, i) => i !== index))} className="absolute top-4 right-4 bg-black/50 p-2 rounded-full"><X size={20} /></button>
+                            </div>
+                        ))}
                     </div>
                 ) : (
                     <label className="w-full aspect-square rounded-3xl border-2 border-dashed border-zinc-700 bg-zinc-900/50 flex flex-col items-center justify-center cursor-pointer hover:bg-zinc-800 transition-colors">
                         <Camera size={48} className="text-zinc-500 mb-4" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Capture the Moment</span>
-                        <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Capture Moment(s)</span>
+                        <input type="file" multiple className="hidden" accept="image/*" onChange={handleFileChange} />
+                    </label>
+                )}
+                {imagePreviews.length > 0 && (
+                    <label className="w-full py-3 rounded-2xl border border-zinc-700 bg-zinc-900/60 text-center text-xs font-black uppercase tracking-widest text-zinc-300 cursor-pointer hover:border-indigo-500/40 hover:text-indigo-300 transition-colors">
+                        Add More Images
+                        <input type="file" multiple className="hidden" accept="image/*" onChange={handleFileChange} />
                     </label>
                 )}
             </div>
             <Textarea label="CAPTION" value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="What went down?" />
-            <Button type="submit" disabled={loading || !imagePreview} className="w-full py-4">SHARE WITH SQUAD</Button>
+            <Button type="submit" disabled={loading || imagePreviews.length === 0} className="w-full py-4">SHARE WITH SQUAD</Button>
         </form>
     );
 };

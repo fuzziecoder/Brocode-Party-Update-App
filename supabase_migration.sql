@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   is_verified BOOLEAN DEFAULT false,
   latitude NUMERIC,
   longitude NUMERIC,
+  org_code TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -56,6 +57,8 @@ CREATE TABLE IF NOT EXISTS spots (
   feedback TEXT,
   latitude NUMERIC,
   longitude NUMERIC,
+  org_code TEXT,
+  management_name TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

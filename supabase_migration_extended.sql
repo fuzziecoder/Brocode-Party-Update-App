@@ -138,12 +138,20 @@ CREATE POLICY "System can create notifications" ON notifications FOR INSERT WITH
 CREATE OR REPLACE FUNCTION update_mission_count_on_attendance()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Only increment if user marked as attended (true) and wasn't already attended
-  IF NEW.attended = true AND (OLD.attended IS NULL OR OLD.attended = false) THEN
+  -- INSERT: increment only when attendance is created as true
+  IF TG_OP = 'INSERT' AND NEW.attended = true THEN
+    UPDATE profiles
+    SET mission_count = COALESCE(mission_count, 0) + 1
+    WHERE id = NEW.user_id;
+  END IF;
+
+  -- UPDATE: increment only when attendance changes from false -> true
+  IF TG_OP = 'UPDATE' AND NEW.attended = true AND COALESCE(OLD.attended, false) = false THEN
     UPDATE profiles 
     SET mission_count = COALESCE(mission_count, 0) + 1
     WHERE id = NEW.user_id;
   END IF;
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

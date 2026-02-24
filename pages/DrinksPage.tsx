@@ -126,7 +126,7 @@ const DrinksPage: React.FC = () => {
 
     try {
       setPageError(null);
-      const spotData = await spotService.getUpcomingSpot();
+      const spotData = await spotService.getUpcomingSpot(profile?.org_code);
       setSpot(spotData);
 
       if (spotData) {
