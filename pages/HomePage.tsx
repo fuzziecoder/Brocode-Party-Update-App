@@ -79,7 +79,7 @@ const HomePage: React.FC = () => {
       }
     };
     checkSetup();
-  }, []);
+  }, [profile?.org_code]);
 
   /* ----------------------------- FETCH DATA ----------------------------- */
 
@@ -87,7 +87,7 @@ const HomePage: React.FC = () => {
     setLoading(true);
     setDbSetupError(null);
     try {
-      const spotData = await spotService.getUpcomingSpot();
+      const spotData = await spotService.getUpcomingSpot(profile?.org_code);
       setSpot(spotData);
 
       if (spotData) {
@@ -115,7 +115,7 @@ const HomePage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [profile?.org_code]);
 
   useEffect(() => {
     fetchData();
@@ -134,7 +134,8 @@ const HomePage: React.FC = () => {
             // Notify all users in database
             notificationService.createNotificationForAllUsers(
               "New Spot Created!",
-              `A new spot has been created at ${payload.new.location}`
+              `A new spot has been created at ${payload.new.location}`,
+              profile?.org_code
             ).catch(err => console.error('Error notifying all users:', err));
             // Also notify current user locally
             notify("New Spot Created!", `A new spot has been created at ${payload.new.location}`);
@@ -159,7 +160,8 @@ const HomePage: React.FC = () => {
             // Notify all users about RSVP updates
             notificationService.createNotificationForAllUsers(
               "RSVP Updated",
-              `Someone ${statusMessages[payload.new.status] || 'updated their RSVP'}`
+              `Someone ${statusMessages[payload.new.status] || 'updated their RSVP'}`,
+              profile?.org_code
             ).catch(err => console.error('Error notifying all users:', err));
             // Also notify current user locally
             notify("RSVP Updated", `Someone ${statusMessages[payload.new.status] || 'updated their RSVP'}`);
@@ -349,12 +351,19 @@ const HomePage: React.FC = () => {
         created_by: userId,
         latitude: newSpotData.latitude,
         longitude: newSpotData.longitude,
+        org_code: profile.org_code,
       });
 
       // Get all users to create invitations for them
-      const { data: allUsers, error: usersError } = await supabase
+      let usersQuery = supabase
         .from('profiles')
         .select('id');
+
+      if (profile.org_code) {
+        usersQuery = usersQuery.eq('org_code', profile.org_code);
+      }
+
+      const { data: allUsers, error: usersError } = await usersQuery;
 
       if (!usersError && allUsers) {
         // Create invitations for all users (pending status by default)
@@ -379,7 +388,8 @@ const HomePage: React.FC = () => {
       // Notify all users about the new spot
       await notificationService.createNotificationForAllUsers(
         "New Spot Created!",
-        `A new spot has been created at ${newSpotData.location} on ${new Date(newSpotData.date).toLocaleDateString()}`
+        `A new spot has been created at ${newSpotData.location} on ${new Date(newSpotData.date).toLocaleDateString()}`,
+        profile.org_code
       );
       // Also notify current user locally
       notify("New Spot Created!", `A new spot has been created at ${newSpotData.location} on ${new Date(newSpotData.date).toLocaleDateString()}`);
@@ -608,7 +618,7 @@ const HomePage: React.FC = () => {
       setIsEditSpotModalOpen(false);
       setEditingSpot(null);
       await fetchData();
-      await notificationService.createNotificationForAllUsers("Spot Updated", "Spot details have been updated successfully");
+      await notificationService.createNotificationForAllUsers("Spot Updated", "Spot details have been updated successfully", profile?.org_code);
       notify("Spot Updated", "Spot details have been updated successfully");
     } catch (error: any) {
       alert(`Failed to update spot: ${error.message || 'Please try again.'}`);
@@ -620,7 +630,7 @@ const HomePage: React.FC = () => {
     try {
       await spotService.deleteSpot(spotId);
       await fetchData();
-      await notificationService.createNotificationForAllUsers("Spot Deleted", "Spot has been deleted successfully");
+      await notificationService.createNotificationForAllUsers("Spot Deleted", "Spot has been deleted successfully", profile?.org_code);
       notify("Spot Deleted", "Spot has been deleted successfully");
     } catch (error: any) {
       alert(`Failed to delete spot: ${error.message || 'Please try again.'}`);
