@@ -2,6 +2,8 @@ import { createServer } from 'node:http';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { URL } from 'node:url';
 import { database, dbPath } from './db.js';
+import { createJobSystem } from './jobs.js';
+import { buildOpenApiSpec, buildSwaggerHtml } from './openapi.js';
 import { cache, eventStateStore, getOrSetJsonCache, presenceStore, rateLimiter, sessionStore } from './cache.js';
 import "./env.js";
 
@@ -14,6 +16,9 @@ const AUTH_TOKEN_SECRET = process.env.AUTH_TOKEN_SECRET || 'brocode-dev-secret-c
 const AUTH_TOKEN_TTL_SECONDS = Number(process.env.AUTH_TOKEN_TTL_SECONDS || 60 * 60 * 12);
 const EVENT_STATE_DEFAULT_TTL_SECONDS = Number(process.env.EVENT_STATE_DEFAULT_TTL_SECONDS || 120);
 const CORS_ALLOW_ORIGIN = process.env.CORS_ALLOW_ORIGIN || '*';
+const loginAttempts = new Map();
+const SWAGGER_HTML = buildSwaggerHtml();
+const jobSystem = await createJobSystem();
 
 const getLoginKey = (req, username) => {
   const forwardedFor = req.headers['x-forwarded-for'];
@@ -114,6 +119,14 @@ const sendJson = (res, statusCode, body) => {
   res.end(JSON.stringify(body));
 };
 
+const sendHtml = (res, statusCode, html) => {
+  res.writeHead(statusCode, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN,
+  });
+  res.end(html);
+};
+
 const readBody = (req) =>
   new Promise((resolve, reject) => {
     let data = '';
@@ -149,7 +162,24 @@ const server = createServer(async (req, res) => {
   }
 
   if (method === 'GET' && path === '/api/health') {
-    sendJson(res, 200, { status: 'ok', service: 'brocode-backend', timestamp: new Date().toISOString() });
+    sendJson(res, 200, {
+      status: 'ok',
+      service: 'brocode-backend',
+      timestamp: new Date().toISOString(),
+      jobs: {
+        enabled: jobSystem.enabled,
+      },
+    });
+    return;
+  }
+
+  if (method === 'GET' && path === '/api/docs/openapi.json') {
+    sendJson(res, 200, buildOpenApiSpec(port));
+    return;
+  }
+
+  if (method === 'GET' && path === '/api/docs') {
+    sendHtml(res, 200, SWAGGER_HTML);
     return;
   }
 
@@ -313,6 +343,13 @@ const server = createServer(async (req, res) => {
       }
 
       const newOrder = database.createOrder({ spotId, userId, items });
+
+      await jobSystem.enqueueEmailNotification({
+        toUserId: userId,
+        subject: `Order placed for ${spotId}`,
+        message: `Your order ${newOrder.id} with total ₹${newOrder.totalAmount} has been received.`,
+      });
+
       sendJson(res, 201, newOrder);
       return;
     } catch (error) {
@@ -362,6 +399,29 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (method === 'POST' && path === '/api/jobs/reminders/run') {
+    const authedUser = getUserFromAuthHeader(req.headers.authorization);
+    if (!authedUser || authedUser.role !== 'admin') {
+      sendJson(res, 403, { error: 'Forbidden' });
+      return;
+    }
+
+    const result = await jobSystem.enqueueSpotReminders({
+      beforeHours: Number(process.env.EVENT_REMINDER_BEFORE_HOURS || 2),
+    });
+    sendJson(res, 202, { accepted: true, ...result, jobsEnabled: jobSystem.enabled });
+    return;
+  }
+
+  if (method === 'POST' && path === '/api/jobs/cleanup/run') {
+    const authedUser = getUserFromAuthHeader(req.headers.authorization);
+    if (!authedUser || authedUser.role !== 'admin') {
+      sendJson(res, 403, { error: 'Forbidden' });
+      return;
+    }
+
+    await jobSystem.enqueueExpiredSpotCleanup();
+    sendJson(res, 202, { accepted: true, jobsEnabled: jobSystem.enabled });
   if (method === 'POST' && path === '/api/presence/heartbeat') {
     const authedUser = await getUserFromAuthHeader(req.headers.authorization);
     if (!authedUser) {
@@ -438,5 +498,16 @@ const server = createServer(async (req, res) => {
 server.listen(port, () => {
   console.log(`Backend API running on http://localhost:${port}`);
   console.log(`Using local database at: ${dbPath}`);
+  console.log(`Swagger docs available at http://localhost:${port}/api/docs`);
+});
+
+process.on('SIGINT', async () => {
+  await jobSystem.shutdown();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  await jobSystem.shutdown();
+  process.exit(0);
   console.log(`Cache mode: ${cache.mode}`);
 });
