@@ -18,6 +18,11 @@ import {
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
+const normalizePhone = (value: string) => {
+  const digits = value.replace(/\D/g, "");
+  return digits.length === 10 ? digits : "";
+};
+
 /* -------------------------------------------------------------------------- */
 /* Default avatars */
 /* -------------------------------------------------------------------------- */
@@ -155,6 +160,35 @@ let USERS_DB: Record<string, UserProfile> = {
   },
 };
 
+type UserLookupIndex = {
+  byEmail: Map<string, UserProfile>;
+  byPhone: Map<string, UserProfile>;
+  byUsername: Map<string, UserProfile>;
+};
+
+const buildUserLookupIndex = (): UserLookupIndex => {
+  const byEmail = new Map<string, UserProfile>();
+  const byPhone = new Map<string, UserProfile>();
+  const byUsername = new Map<string, UserProfile>();
+
+  for (const user of Object.values(USERS_DB)) {
+    if (user.email) byEmail.set(user.email, user);
+
+    const normalizedPhone = normalizePhone(user.phone || "");
+    if (normalizedPhone) byPhone.set(normalizedPhone, user);
+
+    if (user.username) byUsername.set(user.username, user);
+  }
+
+  return { byEmail, byPhone, byUsername };
+};
+
+let USER_LOOKUP_INDEX = buildUserLookupIndex();
+
+const refreshUserLookupIndex = () => {
+  USER_LOOKUP_INDEX = buildUserLookupIndex();
+};
+
 // Initialize spot for 26/07/2025
 const SPOT_DATE = "2025-07-26T10:00:00";
 const SPOT_LOCATION = "Attibele Toll Plaza";
@@ -242,6 +276,8 @@ let INVITATIONS: Invitation[] = [
   },
 ];
 
+let INVITATION_BY_ID = new Map(INVITATIONS.map((invitation) => [invitation.id, invitation]));
+
 // Initialize payments with real payment statuses
 let PAYMENTS: Payment[] = [
   {
@@ -302,6 +338,8 @@ let PAYMENTS: Payment[] = [
   },
 ];
 
+let PAYMENT_BY_ID = new Map(PAYMENTS.map((payment) => [payment.id, payment]));
+
 let DRINKS: Drink[] = [];
 let MESSAGES: ChatMessage[] = [];
 let MOMENTS: Moment[] = [];
@@ -320,19 +358,19 @@ export const mockApi = {
   ): Promise<{ user: User; profile: UserProfile }> {
     await delay(300);
 
-    // Strip formatting from phone number for comparison
-    const cleanIdentifier = identifier.replace(/\D/g, '').length === 10 ? identifier.replace(/\D/g, '') : identifier;
+    const cleanIdentifier = normalizePhone(identifier);
+    const profile =
+      USER_LOOKUP_INDEX.byEmail.get(identifier) ??
+      (cleanIdentifier ? USER_LOOKUP_INDEX.byPhone.get(cleanIdentifier) : undefined) ??
+      USER_LOOKUP_INDEX.byUsername.get(identifier);
 
-    const profile = Object.values(USERS_DB).find(
-      (u) =>
-        (u.email === identifier ||
-          u.phone === cleanIdentifier ||
-          u.username === identifier) &&
-        u.password === password &&
-        (!orgCode?.trim() || u.org_code === orgCode.trim())
-    );
-
-    if (!profile) throw new Error("Invalid credentials");
+    if (
+      !profile ||
+      profile.password !== password ||
+      (orgCode?.trim() && profile.org_code !== orgCode.trim())
+    ) {
+      throw new Error("Invalid credentials");
+    }
 
     const user: User = {
       id: profile.id,
@@ -357,6 +395,7 @@ export const mockApi = {
   ): Promise<UserProfile> {
     await delay(200);
     USERS_DB[userId] = { ...USERS_DB[userId], ...updates };
+    refreshUserLookupIndex();
     return USERS_DB[userId];
   },
 
@@ -370,7 +409,8 @@ export const mockApi = {
   }): Promise<UserProfile> {
     await delay(300);
 
-    if (Object.values(USERS_DB).some((u) => u.phone === data.phone)) {
+    const normalizedPhone = normalizePhone(data.phone);
+    if (normalizedPhone && USER_LOOKUP_INDEX.byPhone.has(normalizedPhone)) {
       throw new Error("User already exists");
     }
 
@@ -390,6 +430,7 @@ export const mockApi = {
     };
 
     USERS_DB[id] = newUser;
+    refreshUserLookupIndex();
     return newUser;
   },
 
@@ -425,21 +466,25 @@ export const mockApi = {
     if (creator && newSpot.members) {
       newSpot.members.push(creator);
 
-      INVITATIONS.push({
+      const creatorInvitation: Invitation = {
         id: `inv-${Date.now()}`,
         spot_id: newSpot.id,
         user_id: creator.id,
         profiles: creator,
         status: InvitationStatus.CONFIRMED,
-      });
+      };
+      INVITATIONS.push(creatorInvitation);
+      INVITATION_BY_ID.set(creatorInvitation.id, creatorInvitation);
 
-      PAYMENTS.push({
+      const creatorPayment: Payment = {
         id: `pay-${Date.now()}`,
         spot_id: newSpot.id,
         user_id: creator.id,
         profiles: creator,
         status: PaymentStatus.NOT_PAID,
-      });
+      };
+      PAYMENTS.push(creatorPayment);
+      PAYMENT_BY_ID.set(creatorPayment.id, creatorPayment);
     }
 
     return newSpot;
@@ -447,13 +492,19 @@ export const mockApi = {
 
   async getUpcomingSpot(): Promise<Spot | null> {
     await delay(200);
-    return (
-      SPOTS.filter((s) => new Date(s.date) >= new Date())
-        .sort(
-          (a, b) =>
-            new Date(a.date).getTime() - new Date(b.date).getTime()
-        )[0] ?? null
-    );
+    const now = Date.now();
+    let nextSpot: Spot | null = null;
+    let nextSpotTime = Number.POSITIVE_INFINITY;
+
+    for (const spot of SPOTS) {
+      const spotTime = new Date(spot.date).getTime();
+      if (spotTime >= now && spotTime < nextSpotTime) {
+        nextSpot = spot;
+        nextSpotTime = spotTime;
+      }
+    }
+
+    return nextSpot;
   },
 
   async getPastSpots(): Promise<Spot[]> {
@@ -473,7 +524,7 @@ export const mockApi = {
     status: InvitationStatus
   ): Promise<void> {
     await delay(200);
-    const inv = INVITATIONS.find((i) => i.id === invitationId);
+    const inv = INVITATION_BY_ID.get(invitationId);
     if (!inv) throw new Error("Invitation not found");
     inv.status = status;
   },
@@ -490,7 +541,7 @@ export const mockApi = {
     status: PaymentStatus
   ): Promise<void> {
     await delay(200);
-    const payment = PAYMENTS.find((p) => p.id === paymentId);
+    const payment = PAYMENT_BY_ID.get(paymentId);
     if (!payment) throw new Error("Payment not found");
     payment.status = status;
   },
@@ -566,7 +617,7 @@ export const mockApi = {
 
   async sendOtp(email: string): Promise<void> {
     await delay(300);
-    const user = Object.values(USERS_DB).find((u) => u.email === email);
+    const user = USER_LOOKUP_INDEX.byEmail.get(email);
     if (!user) throw new Error("User not found");
     // In a real implementation, this would send an OTP
     // For now, we'll just simulate success
@@ -574,7 +625,7 @@ export const mockApi = {
 
   async resetPassword(email: string, newPassword: string): Promise<void> {
     await delay(300);
-    const user = Object.values(USERS_DB).find((u) => u.email === email);
+    const user = USER_LOOKUP_INDEX.byEmail.get(email);
     if (!user) throw new Error("User not found");
     user.password = newPassword;
   },
