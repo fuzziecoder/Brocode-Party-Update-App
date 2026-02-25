@@ -13,6 +13,11 @@ const envSchema = z.object({
   LOGIN_RATE_LIMIT_MAX_ATTEMPTS: z.string().regex(/^\d+$/).optional(),
   LOGIN_RATE_LIMIT_WINDOW_MS: z.string().regex(/^\d+$/).optional(),
   LOGIN_RATE_LIMIT_BLOCK_MS: z.string().regex(/^\d+$/).optional(),
+  REDIS_URL: z.string().url().optional(),
+  REDIS_KEY_PREFIX: z.string().optional(),
+  CACHE_DEFAULT_TTL_SECONDS: z.string().regex(/^\d+$/).optional(),
+  PRESENCE_TTL_SECONDS: z.string().regex(/^\d+$/).optional(),
+  EVENT_STATE_DEFAULT_TTL_SECONDS: z.string().regex(/^\d+$/).optional(),
 });
 
 const result = envSchema.safeParse(process.env);
