@@ -33,6 +33,27 @@ Server starts at `http://localhost:4000` by default.
   - `LOGIN_RATE_LIMIT_WINDOW_MS`
   - `LOGIN_RATE_LIMIT_BLOCK_MS`
 
+### Issue #31: Redis-backed caching + session/performance primitives
+
+- Added optional Redis integration (`REDIS_URL`) with automatic in-memory fallback when Redis is unavailable.
+- Active auth sessions are now stored in cache (token hash), and protected routes require an active session.
+- Added cache-backed rate limiting primitives for login attempts (window + temporary block).
+- Added short-lived cache for read-heavy endpoints:
+  - `GET /api/catalog` (cached)
+  - `GET /api/spots` (cached)
+- Added real-time presence endpoints:
+  - `POST /api/presence/heartbeat`
+  - `GET /api/presence/active?spotId=...`
+- Added temporary event state endpoints:
+  - `PUT|POST /api/events/state/:eventKey`
+  - `GET /api/events/state/:eventKey`
+- New env vars:
+  - `REDIS_URL`
+  - `REDIS_KEY_PREFIX`
+  - `CACHE_DEFAULT_TTL_SECONDS`
+  - `PRESENCE_TTL_SECONDS`
+  - `EVENT_STATE_DEFAULT_TTL_SECONDS`
+
 ### Issue #30: Secure backend data access with signed auth tokens + authorization
 
 - Login now returns an HMAC-signed bearer token (replacing predictable demo tokens).
@@ -52,14 +73,19 @@ Server starts at `http://localhost:4000` by default.
 
 - `GET /api/health`
 - `POST /api/auth/login`
-- `GET /api/catalog`
+- `POST /api/auth/logout`
+- `GET /api/catalog` (cached)
 - `GET /api/catalog/:category` (`drinks`, `food`, `cigarettes`)
-- `GET /api/spots`
+- `GET /api/spots` (cached)
 - `GET /api/orders?spotId=...&userId=...` (auth required)
 - `GET /api/orders/:id` (auth required)
 - `POST /api/orders` (auth required)
 - `GET /api/bills/:spotId` (admin only)
 - `DELETE /api/users/:userId` (admin only; removes the user and all related records)
+- `POST /api/presence/heartbeat` (auth required)
+- `GET /api/presence/active?spotId=...` (auth required)
+- `PUT|POST /api/events/state/:eventKey` (auth required)
+- `GET /api/events/state/:eventKey` (auth required)
 
 ## Example login payload
 
