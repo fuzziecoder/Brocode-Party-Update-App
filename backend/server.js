@@ -16,19 +16,67 @@ const AUTH_TOKEN_SECRET = process.env.AUTH_TOKEN_SECRET || 'brocode-dev-secret-c
 const AUTH_TOKEN_TTL_SECONDS = Number(process.env.AUTH_TOKEN_TTL_SECONDS || 60 * 60 * 12);
 const EVENT_STATE_DEFAULT_TTL_SECONDS = Number(process.env.EVENT_STATE_DEFAULT_TTL_SECONDS || 120);
 const CORS_ALLOW_ORIGIN = process.env.CORS_ALLOW_ORIGIN || '*';
+const GLOBAL_RATE_LIMIT_MAX_REQUESTS = Number(process.env.GLOBAL_RATE_LIMIT_MAX_REQUESTS || 300);
+const GLOBAL_RATE_LIMIT_WINDOW_MS = Number(process.env.GLOBAL_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
+const SECURITY_HEADERS_CSP = process.env.SECURITY_HEADERS_CSP || "default-src 'self'";
 const loginAttempts = new Map();
+const globalRequests = new Map();
 const SWAGGER_HTML = buildSwaggerHtml();
 const jobSystem = await createJobSystem();
 
-const getLoginKey = (req, username) => {
+const getLoginKey = (req, username) => `${getRequestIp(req)}:${username}`;
+
+const getRateLimitState = (key) => {
+  const now = Date.now();
+  const existing = loginAttempts.get(key);
+
+  if (!existing) {
+    const state = { count: 0, windowStart: now, blockedUntil: 0 };
+    loginAttempts.set(key, state);
+    return state;
+  }
+
+  if (existing.blockedUntil > 0 && existing.blockedUntil <= now) {
+    existing.count = 0;
+    existing.windowStart = now;
+    existing.blockedUntil = 0;
+  }
+
+  if (now - existing.windowStart > LOGIN_RATE_LIMIT_WINDOW_MS) {
+    existing.count = 0;
+    existing.windowStart = now;
+  }
+
+  return existing;
+};
+
+
+const getGlobalRateLimitState = (key) => {
+  const now = Date.now();
+  const existing = globalRequests.get(key);
+
+  if (!existing || now - existing.windowStart > GLOBAL_RATE_LIMIT_WINDOW_MS) {
+    const state = { count: 0, windowStart: now };
+    globalRequests.set(key, state);
+    return state;
+  }
+
+  return existing;
+};
+
+const getRequestIp = (req) => {
   const forwardedFor = req.headers['x-forwarded-for'];
   const firstForwardedIp = Array.isArray(forwardedFor)
     ? forwardedFor[0]
     : typeof forwardedFor === 'string'
       ? forwardedFor.split(',')[0]
       : '';
-  const remoteIp = firstForwardedIp?.trim() || req.socket?.remoteAddress || 'unknown-ip';
-  return `${remoteIp}:${username}`;
+
+  return firstForwardedIp?.trim() || req.socket?.remoteAddress || 'unknown-ip';
+};
+
+const clearRateLimitState = (key) => {
+  loginAttempts.delete(key);
 };
 
 const parseBearerToken = (authHeader) => {
@@ -109,13 +157,42 @@ const getUserFromAuthHeader = async (authHeader) => {
   return database.getUserById(verifiedPayload.sub);
 };
 
+const recordFailedLoginAttempt = (key) => {
+  const now = Date.now();
+  const state = getRateLimitState(key);
+  state.count += 1;
+
+  if (state.count >= LOGIN_RATE_LIMIT_MAX_ATTEMPTS) {
+    state.blockedUntil = now + LOGIN_RATE_LIMIT_BLOCK_MS;
+  }
+};
+
+const sendJson = (res, statusCode, body, extraHeaders = {}) => {
 const sendJson = (res, statusCode, body) => {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN,
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Resource-Policy': 'same-origin',
+    'Origin-Agent-Cluster': '?1',
+    'Referrer-Policy': 'no-referrer',
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+    'X-Content-Type-Options': 'nosniff',
+    'X-DNS-Prefetch-Control': 'off',
+    'X-Download-Options': 'noopen',
+    'X-Frame-Options': 'SAMEORIGIN',
+    'X-Permitted-Cross-Domain-Policies': 'none',
+    'X-XSS-Protection': '0',
+    'Content-Security-Policy': SECURITY_HEADERS_CSP,
+    ...extraHeaders,
   });
+  if (statusCode === 204) {
+    res.end();
+    return;
+  }
+
   res.end(JSON.stringify(body));
 };
 
@@ -156,6 +233,23 @@ const server = createServer(async (req, res) => {
   const parsedUrl = new URL(req.url || '/', `http://localhost:${port}`);
   const path = parsedUrl.pathname;
 
+  const globalRateLimitKey = getRequestIp(req);
+  const globalRateLimitState = getGlobalRateLimitState(globalRateLimitKey);
+  globalRateLimitState.count += 1;
+
+  if (globalRateLimitState.count > GLOBAL_RATE_LIMIT_MAX_REQUESTS) {
+    const retryAfterSeconds = Math.ceil(
+      (GLOBAL_RATE_LIMIT_WINDOW_MS - (Date.now() - globalRateLimitState.windowStart)) / 1000
+    );
+    sendJson(
+      res,
+      429,
+      { error: 'Too many requests. Please try again later.', retryAfterSeconds },
+      { 'Retry-After': String(Math.max(retryAfterSeconds, 1)) }
+    );
+    return;
+  }
+
   if (method === 'OPTIONS') {
     sendJson(res, 204, {});
     return;
@@ -193,6 +287,19 @@ const server = createServer(async (req, res) => {
       }
 
       const loginKey = getLoginKey(req, username);
+      const rateLimitState = getRateLimitState(loginKey);
+      const now = Date.now();
+      if (rateLimitState.blockedUntil > now) {
+        const retryAfterSeconds = Math.ceil((rateLimitState.blockedUntil - now) / 1000);
+        sendJson(
+          res,
+          429,
+          {
+            error: 'Too many failed login attempts. Please try again later.',
+            retryAfterSeconds,
+          },
+          { 'Retry-After': String(Math.max(retryAfterSeconds, 1)) }
+        );
       const retryAfterSeconds = await rateLimiter.getBlockedSeconds(loginKey);
       if (retryAfterSeconds > 0) {
         sendJson(res, 429, {
