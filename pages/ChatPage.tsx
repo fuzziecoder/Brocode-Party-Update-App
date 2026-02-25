@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { ChatMessage } from '../types';
-import { ArrowLeft, Video, Plus, Send, X, Smile, Trash2, Loader2, MoreVertical, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Video, Plus, Send, X, Smile, Trash2, Loader2, MoreVertical } from 'lucide-react';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as ReactRouterDOM from 'react-router-dom';
@@ -57,6 +56,7 @@ const ChatPage: React.FC = () => {
     const [imagePreviews, setImagePreviews] = useState<string[]>([]);
     const [reactingTo, setReactingTo] = useState<string | null>(null);
     const [showStickerPicker, setShowStickerPicker] = useState(false);
+    const chatContainerRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -92,6 +92,30 @@ const ChatPage: React.FC = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (!chatContainerRef.current?.contains(event.target as Node)) {
+                setShowStickerPicker(false);
+                setReactingTo(null);
+            }
+        };
+
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setShowStickerPicker(false);
+                setReactingTo(null);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleEscape);
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, []);
+
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newMessage.trim() && imagePreviews.length === 0) return;
@@ -113,12 +137,18 @@ const ChatPage: React.FC = () => {
         const files = e.target.files;
         if (files) {
             Array.from(files).forEach(file => {
+                if (!file.type.startsWith('image/')) {
+                    return;
+                }
+
                 const reader = new FileReader();
                 reader.onloadend = () => {
                     setImagePreviews(prev => [...prev, reader.result as string]);
                 };
                 reader.readAsDataURL(file);
             });
+
+            e.target.value = '';
         }
     };
 
@@ -135,7 +165,7 @@ const ChatPage: React.FC = () => {
     };
 
     return (
-        <div className="h-[calc(100vh-140px)] md:h-[calc(100vh-64px)] flex flex-col bg-black text-white relative overflow-hidden rounded-3xl border border-white/5">
+        <div ref={chatContainerRef} className="h-[calc(100vh-140px)] md:h-[calc(100vh-64px)] flex flex-col bg-black text-white relative overflow-hidden rounded-3xl border border-white/5">
             <header className="flex items-center justify-between p-4 border-b border-zinc-800 bg-black/80 backdrop-blur-md sticky top-0 z-20">
                 <div className="flex items-center gap-4">
                     <button onClick={() => navigate(-1)} className="p-2 hover:bg-zinc-800 rounded-full transition-colors">
@@ -182,7 +212,7 @@ const ChatPage: React.FC = () => {
                                 <div className={`flex gap-3 max-w-[85%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                                     <div
                                         className="w-8 flex-shrink-0 self-end mb-1 cursor-pointer hover:opacity-80 transition-opacity"
-                                        onClick={() => !isMe && (window.location.href = `/dashboard/profile/${msg.user_id}`)}
+                                        onClick={() => !isMe && navigate(`/dashboard/profile/${msg.user_id}`)}
                                     >
                                         {showAvatar && (
                                             <img
@@ -197,7 +227,7 @@ const ChatPage: React.FC = () => {
                                         {!isMe && showAvatar && (
                                             <span
                                                 className="text-[10px] font-black text-zinc-500 uppercase tracking-tighter ml-1 cursor-pointer hover:text-zinc-400 transition-colors"
-                                                onClick={() => window.location.href = `/dashboard/profile/${msg.user_id}`}
+                                                onClick={() => navigate(`/dashboard/profile/${msg.user_id}`)}
                                             >
                                                 {msg.profiles.name}
                                                 {msg.profiles.is_sponsor && <SponsorBadge size="sm" count={msg.profiles.sponsor_count || 0} />}
@@ -243,7 +273,7 @@ const ChatPage: React.FC = () => {
                                             {/* Reaction Picker Portal */}
                                             <AnimatePresence>
                                                 {reactingTo === msg.id && (
-                                                    <div className={isMe ? 'right-0' : 'left-0'}>
+                                                    <div className={`absolute bottom-full mb-2 z-30 ${isMe ? 'right-0' : 'left-0'}`}>
                                                         <ReactionPicker onSelect={(emoji) => {
                                                             addReaction(msg.id, emoji);
                                                             setReactingTo(null);
