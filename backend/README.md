@@ -33,6 +33,20 @@ Server starts at `http://localhost:4000` by default.
   - `LOGIN_RATE_LIMIT_WINDOW_MS`
   - `LOGIN_RATE_LIMIT_BLOCK_MS`
 
+### Issue #30: Secure backend data access with signed auth tokens + authorization
+
+- Login now returns an HMAC-signed bearer token (replacing predictable demo tokens).
+- Tokens include user id, role, and expiry, and are validated with constant-time signature checks.
+- Data endpoints now require `Authorization: Bearer <token>` and enforce role access:
+  - `GET /api/orders` → users can only read their own orders; admins can read all.
+  - `POST /api/orders` → users can create only for themselves; admins can create for any user.
+  - `GET /api/orders/:id` → users can read only their own order; admins can read any order.
+  - `GET /api/bills/:spotId` and `DELETE /api/users/:userId` → admin only.
+- Configure via env vars:
+  - `AUTH_TOKEN_SECRET`
+  - `AUTH_TOKEN_TTL_SECONDS`
+  - `CORS_ALLOW_ORIGIN`
+
 
 ## Available endpoints
 
@@ -41,10 +55,11 @@ Server starts at `http://localhost:4000` by default.
 - `GET /api/catalog`
 - `GET /api/catalog/:category` (`drinks`, `food`, `cigarettes`)
 - `GET /api/spots`
-- `GET /api/orders?spotId=...&userId=...`
-- `POST /api/orders`
-- `GET /api/bills/:spotId`
-- `DELETE /api/users/:userId` (removes the user and all related records)
+- `GET /api/orders?spotId=...&userId=...` (auth required)
+- `GET /api/orders/:id` (auth required)
+- `POST /api/orders` (auth required)
+- `GET /api/bills/:spotId` (admin only)
+- `DELETE /api/users/:userId` (admin only; removes the user and all related records)
 
 ## Example login payload
 
