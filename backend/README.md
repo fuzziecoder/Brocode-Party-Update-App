@@ -47,11 +47,31 @@ Server starts at `http://localhost:4000` by default.
   - `AUTH_TOKEN_TTL_SECONDS`
   - `CORS_ALLOW_ORIGIN`
 
+### Background jobs (BullMQ + Redis)
+
+- The backend initializes BullMQ queues for:
+  - email notification jobs (`email-notifications`) when a new order is created.
+  - scheduled reminder jobs (`spot-reminders`) for upcoming spots/events.
+  - recurring cleanup jobs (`expired-spot-cleanup`) for expired events.
+- Redis connection settings:
+  - `REDIS_HOST` (default `127.0.0.1`)
+  - `REDIS_PORT` (default `6379`)
+  - `REDIS_PASSWORD` (optional)
+- Reminder timing:
+  - `EVENT_REMINDER_BEFORE_HOURS` (default `2`)
+- If BullMQ or Redis dependencies are unavailable, backend continues to run with jobs disabled and logs a warning.
+
+### API Documentation (Swagger/OpenAPI)
+
+- OpenAPI JSON is available at `GET /api/docs/openapi.json`.
+- Swagger UI is available at `GET /api/docs`.
 
 ## Available endpoints
 
 - `GET /api/health`
 - `POST /api/auth/login`
+- `GET /api/docs`
+- `GET /api/docs/openapi.json`
 - `GET /api/catalog`
 - `GET /api/catalog/:category` (`drinks`, `food`, `cigarettes`)
 - `GET /api/spots`
@@ -60,6 +80,8 @@ Server starts at `http://localhost:4000` by default.
 - `POST /api/orders` (auth required)
 - `GET /api/bills/:spotId` (admin only)
 - `DELETE /api/users/:userId` (admin only; removes the user and all related records)
+- `POST /api/jobs/reminders/run` (admin only; manually queue reminder jobs)
+- `POST /api/jobs/cleanup/run` (admin only; manually queue expired-event cleanup)
 
 ## Example login payload
 

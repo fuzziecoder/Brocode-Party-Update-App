@@ -197,6 +197,23 @@ export const database = {
       .sort((a, b) => b.date.localeCompare(a.date));
   },
 
+  getSpotsBetween({ fromInclusive, toInclusive }) {
+    const fromValue = fromInclusive ? new Date(fromInclusive).getTime() : Number.NEGATIVE_INFINITY;
+    const toValue = toInclusive ? new Date(toInclusive).getTime() : Number.POSITIVE_INFINITY;
+
+    return state.spots
+      .filter((spot) => {
+        const timestamp = new Date(spot.date).getTime();
+        return timestamp >= fromValue && timestamp <= toValue;
+      })
+      .map((spot) => ({
+        id: spot.id,
+        location: spot.location,
+        date: spot.date,
+        hostUserId: spot.host_user_id,
+      }));
+  },
+
   getOrders({ spotId, userId }) {
     const orders = state.orders
       .filter((order) => !spotId || order.spot_id === spotId)
@@ -306,6 +323,35 @@ export const database = {
       total,
       userTotals,
       orderCount: summaryRows.length,
+    };
+  },
+
+  cleanupExpiredSpots(referenceDate = new Date().toISOString()) {
+    const referenceTimestamp = new Date(referenceDate).getTime();
+    const expiredSpotIds = new Set(
+      state.spots
+        .filter((spot) => new Date(spot.date).getTime() < referenceTimestamp)
+        .map((spot) => spot.id)
+    );
+
+    if (expiredSpotIds.size === 0) {
+      return { removedSpotCount: 0, removedOrderCount: 0, removedOrderItemCount: 0 };
+    }
+
+    const previousOrderCount = state.orders.length;
+    const previousOrderItemCount = state.order_items.length;
+
+    state.spots = state.spots.filter((spot) => !expiredSpotIds.has(spot.id));
+    state.orders = state.orders.filter((order) => !expiredSpotIds.has(order.spot_id));
+    const activeOrderIds = new Set(state.orders.map((order) => order.id));
+    state.order_items = state.order_items.filter((item) => activeOrderIds.has(item.order_id));
+
+    persist();
+
+    return {
+      removedSpotCount: expiredSpotIds.size,
+      removedOrderCount: previousOrderCount - state.orders.length,
+      removedOrderItemCount: previousOrderItemCount - state.order_items.length,
     };
   },
 };
