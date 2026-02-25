@@ -7,9 +7,10 @@ import Modal from "../components/common/Modal";
 import Input from "../components/common/Input";
 import { spotService, paymentService, drinkService, cigaretteService, foodService, drinkBrandService, userDrinkSelectionService, sponsorService } from "../services/database";
 import { supabase } from "../services/supabase";
-import { Plus, ThumbsUp, Trash2, Loader2, Image as ImageIcon, X, Camera, ShoppingCart, Minus, Check, Wine, Search, Menu, ArrowLeft, Star, Edit, Utensils, Download } from "lucide-react";
+import { Plus, ThumbsUp, Trash2, Loader2, Image as ImageIcon, X, Camera, ShoppingCart, Minus, Check, Wine, Search, Menu, ArrowLeft, Star, Edit, Utensils, Download, Sparkles } from "lucide-react";
 import ShinyText from "../components/common/ShinyText";
 import SponsorBadge from "../components/common/SponsorBadge";
+import { getPartyAssistantSuggestions, PartyAssistantSuggestion } from "../services/partyAssistant";
 
 const DrinksPage: React.FC = () => {
   const { profile } = useAuth();
@@ -56,6 +57,9 @@ const DrinksPage: React.FC = () => {
   const [priceInput, setPriceInput] = useState("");
   const [currentUserUUID, setCurrentUserUUID] = useState<string | null>(null);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("Plan for a chill Friday night with balanced drinks and snacks");
+  const [aiSuggestions, setAiSuggestions] = useState<PartyAssistantSuggestion[]>([]);
+  const [isAiLoading, setIsAiLoading] = useState(false);
 
   const isAdmin = profile?.role === UserRole.ADMIN;
 
@@ -652,6 +656,25 @@ const DrinksPage: React.FC = () => {
     return userVotedDrinks.has(drink.id);
   };
 
+  const handleGenerateAiSuggestions = async () => {
+    setIsAiLoading(true);
+    try {
+      const suggestions = await getPartyAssistantSuggestions({
+        prompt: aiPrompt,
+        budget: spot?.budget,
+        drinks,
+        foods,
+        cigarettes,
+      });
+      setAiSuggestions(suggestions);
+    } catch (error) {
+      console.error("Failed to generate AI suggestions", error);
+      setAiSuggestions([]);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
   // Export data to Excel (CSV format)
   const exportToExcel = () => {
     if (!isAdmin) return;
@@ -876,6 +899,43 @@ const DrinksPage: React.FC = () => {
               className="w-full pl-10 pr-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
             />
           </div>
+
+          <Card className="p-4 bg-gradient-to-br from-indigo-500/15 to-fuchsia-500/10 border border-indigo-500/30">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <p className="text-sm text-indigo-200 font-semibold flex items-center gap-2">
+                  <Sparkles size={16} />
+                  AI Party Planner
+                </p>
+                <p className="text-xs text-zinc-300 mt-1">Uses Gemini when <code>VITE_GEMINI_API_KEY</code> is configured; otherwise falls back to smart local recommendations.</p>
+              </div>
+              <button
+                onClick={handleGenerateAiSuggestions}
+                disabled={isAiLoading}
+                className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium disabled:opacity-60"
+              >
+                {isAiLoading ? "Thinking..." : "Generate"}
+              </button>
+            </div>
+            <Input
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              placeholder="Example: Build a premium menu for 8 people under ₹3500"
+            />
+
+            {aiSuggestions.length > 0 && (
+              <div className="grid md:grid-cols-3 gap-3 mt-4">
+                {aiSuggestions.map((suggestion) => (
+                  <div key={suggestion.title} className="rounded-xl border border-zinc-700/60 bg-black/30 p-3">
+                    <p className="font-semibold text-white text-sm">{suggestion.title}</p>
+                    <p className="text-xs text-zinc-300 mt-1">{suggestion.reason}</p>
+                    <p className="text-xs text-emerald-300 mt-2">Estimated: ₹{suggestion.estimatedCost}</p>
+                    <p className="text-xs text-zinc-400 mt-2">{suggestion.picks.join(" • ")}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
 
           {/* Type Toggle Pills */}
           <div className="flex gap-2">
@@ -2312,4 +2372,3 @@ const DrinksPage: React.FC = () => {
 };
 
 export default DrinksPage;
-
