@@ -2,6 +2,9 @@ import { createServer } from 'node:http';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { URL } from 'node:url';
 import { database, dbPath } from './db.js';
+import { createJobSystem } from './jobs.js';
+import { buildOpenApiSpec, buildSwaggerHtml } from './openapi.js';
+import { cache, eventStateStore, getOrSetJsonCache, presenceStore, rateLimiter, sessionStore } from './cache.js';
 import "./env.js";
 
 const port = Number(process.env.PORT || 4000);
@@ -11,12 +14,15 @@ const LOGIN_RATE_LIMIT_WINDOW_MS = Number(process.env.LOGIN_RATE_LIMIT_WINDOW_MS
 const LOGIN_RATE_LIMIT_BLOCK_MS = Number(process.env.LOGIN_RATE_LIMIT_BLOCK_MS || 15 * 60 * 1000);
 const AUTH_TOKEN_SECRET = process.env.AUTH_TOKEN_SECRET || 'brocode-dev-secret-change-me';
 const AUTH_TOKEN_TTL_SECONDS = Number(process.env.AUTH_TOKEN_TTL_SECONDS || 60 * 60 * 12);
+const EVENT_STATE_DEFAULT_TTL_SECONDS = Number(process.env.EVENT_STATE_DEFAULT_TTL_SECONDS || 120);
 const CORS_ALLOW_ORIGIN = process.env.CORS_ALLOW_ORIGIN || '*';
 const GLOBAL_RATE_LIMIT_MAX_REQUESTS = Number(process.env.GLOBAL_RATE_LIMIT_MAX_REQUESTS || 300);
 const GLOBAL_RATE_LIMIT_WINDOW_MS = Number(process.env.GLOBAL_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
 const SECURITY_HEADERS_CSP = process.env.SECURITY_HEADERS_CSP || "default-src 'self'";
 const loginAttempts = new Map();
 const globalRequests = new Map();
+const SWAGGER_HTML = buildSwaggerHtml();
+const jobSystem = await createJobSystem();
 
 const getLoginKey = (req, username) => `${getRequestIp(req)}:${username}`;
 
@@ -132,9 +138,14 @@ const verifyAuthToken = (token) => {
   }
 };
 
-const getUserFromAuthHeader = (authHeader) => {
+const getUserFromAuthHeader = async (authHeader) => {
   const token = parseBearerToken(authHeader);
   if (!token) {
+    return null;
+  }
+
+  const hasActiveSession = await sessionStore.hasActiveSession(token);
+  if (!hasActiveSession) {
     return null;
   }
 
@@ -157,6 +168,7 @@ const recordFailedLoginAttempt = (key) => {
 };
 
 const sendJson = (res, statusCode, body, extraHeaders = {}) => {
+const sendJson = (res, statusCode, body) => {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN,
@@ -182,6 +194,14 @@ const sendJson = (res, statusCode, body, extraHeaders = {}) => {
   }
 
   res.end(JSON.stringify(body));
+};
+
+const sendHtml = (res, statusCode, html) => {
+  res.writeHead(statusCode, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN,
+  });
+  res.end(html);
 };
 
 const readBody = (req) =>
@@ -236,7 +256,24 @@ const server = createServer(async (req, res) => {
   }
 
   if (method === 'GET' && path === '/api/health') {
-    sendJson(res, 200, { status: 'ok', service: 'brocode-backend', timestamp: new Date().toISOString() });
+    sendJson(res, 200, {
+      status: 'ok',
+      service: 'brocode-backend',
+      timestamp: new Date().toISOString(),
+      jobs: {
+        enabled: jobSystem.enabled,
+      },
+    });
+    return;
+  }
+
+  if (method === 'GET' && path === '/api/docs/openapi.json') {
+    sendJson(res, 200, buildOpenApiSpec(port));
+    return;
+  }
+
+  if (method === 'GET' && path === '/api/docs') {
+    sendHtml(res, 200, SWAGGER_HTML);
     return;
   }
 
@@ -263,20 +300,33 @@ const server = createServer(async (req, res) => {
           },
           { 'Retry-After': String(Math.max(retryAfterSeconds, 1)) }
         );
+      const retryAfterSeconds = await rateLimiter.getBlockedSeconds(loginKey);
+      if (retryAfterSeconds > 0) {
+        sendJson(res, 429, {
+          error: 'Too many failed login attempts. Please try again later.',
+          retryAfterSeconds,
+        });
         return;
       }
 
       const user = database.getUserByCredentials(username, password);
 
       if (!user) {
-        recordFailedLoginAttempt(loginKey);
+        await rateLimiter.recordFailure(loginKey, {
+          maxAttempts: LOGIN_RATE_LIMIT_MAX_ATTEMPTS,
+          windowMs: LOGIN_RATE_LIMIT_WINDOW_MS,
+          blockMs: LOGIN_RATE_LIMIT_BLOCK_MS,
+        });
         sendJson(res, 401, { error: 'invalid credentials' });
         return;
       }
 
-      clearRateLimitState(loginKey);
+      await rateLimiter.clear(loginKey);
 
-      sendJson(res, 200, { token: generateAuthToken(user), user });
+      const token = generateAuthToken(user);
+      await sessionStore.setActiveSession(token, user.id, AUTH_TOKEN_TTL_SECONDS);
+
+      sendJson(res, 200, { token, user });
       return;
     } catch (error) {
       sendJson(res, 400, { error: error.message });
@@ -284,8 +334,21 @@ const server = createServer(async (req, res) => {
     }
   }
 
+  if (method === 'POST' && path === '/api/auth/logout') {
+    const token = parseBearerToken(req.headers.authorization);
+    if (!token) {
+      sendJson(res, 401, { error: 'Unauthorized' });
+      return;
+    }
+
+    await sessionStore.clearActiveSession(token);
+    sendJson(res, 200, { success: true });
+    return;
+  }
+
   if (method === 'GET' && path === '/api/catalog') {
-    sendJson(res, 200, database.getCatalog());
+    const catalog = await getOrSetJsonCache('catalog', async () => database.getCatalog());
+    sendJson(res, 200, catalog);
     return;
   }
 
@@ -304,12 +367,13 @@ const server = createServer(async (req, res) => {
   }
 
   if (method === 'GET' && path === '/api/spots') {
-    sendJson(res, 200, database.getSpots());
+    const spots = await getOrSetJsonCache('spots', async () => database.getSpots());
+    sendJson(res, 200, spots);
     return;
   }
 
   if (method === 'GET' && path === '/api/orders') {
-    const authedUser = getUserFromAuthHeader(req.headers.authorization);
+    const authedUser = await getUserFromAuthHeader(req.headers.authorization);
     if (!authedUser) {
       sendJson(res, 401, { error: 'Unauthorized' });
       return;
@@ -332,7 +396,7 @@ const server = createServer(async (req, res) => {
   if (method === 'GET' && path.startsWith('/api/orders/')) {
     const orderId = path.replace('/api/orders/', '');
 
-    const authedUser = getUserFromAuthHeader(req.headers.authorization);
+    const authedUser = await getUserFromAuthHeader(req.headers.authorization);
     if (!authedUser) {
       sendJson(res, 401, { error: 'Unauthorized' });
       return;
@@ -357,7 +421,7 @@ const server = createServer(async (req, res) => {
 
   if (method === 'POST' && path === '/api/orders') {
     try {
-      const authedUser = getUserFromAuthHeader(req.headers.authorization);
+      const authedUser = await getUserFromAuthHeader(req.headers.authorization);
       if (!authedUser) {
         sendJson(res, 401, { error: 'Unauthorized' });
         return;
@@ -386,6 +450,13 @@ const server = createServer(async (req, res) => {
       }
 
       const newOrder = database.createOrder({ spotId, userId, items });
+
+      await jobSystem.enqueueEmailNotification({
+        toUserId: userId,
+        subject: `Order placed for ${spotId}`,
+        message: `Your order ${newOrder.id} with total ₹${newOrder.totalAmount} has been received.`,
+      });
+
       sendJson(res, 201, newOrder);
       return;
     } catch (error) {
@@ -399,7 +470,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (method === 'GET' && path.startsWith('/api/bills/')) {
-    const authedUser = getUserFromAuthHeader(req.headers.authorization);
+    const authedUser = await getUserFromAuthHeader(req.headers.authorization);
     if (!authedUser || authedUser.role !== 'admin') {
       sendJson(res, 403, { error: 'Forbidden' });
       return;
@@ -412,7 +483,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (method === 'DELETE' && path.startsWith('/api/users/')) {
-    const authedUser = getUserFromAuthHeader(req.headers.authorization);
+    const authedUser = await getUserFromAuthHeader(req.headers.authorization);
     if (!authedUser || authedUser.role !== 'admin') {
       sendJson(res, 403, { error: 'Forbidden' });
       return;
@@ -435,10 +506,115 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (method === 'POST' && path === '/api/jobs/reminders/run') {
+    const authedUser = getUserFromAuthHeader(req.headers.authorization);
+    if (!authedUser || authedUser.role !== 'admin') {
+      sendJson(res, 403, { error: 'Forbidden' });
+      return;
+    }
+
+    const result = await jobSystem.enqueueSpotReminders({
+      beforeHours: Number(process.env.EVENT_REMINDER_BEFORE_HOURS || 2),
+    });
+    sendJson(res, 202, { accepted: true, ...result, jobsEnabled: jobSystem.enabled });
+    return;
+  }
+
+  if (method === 'POST' && path === '/api/jobs/cleanup/run') {
+    const authedUser = getUserFromAuthHeader(req.headers.authorization);
+    if (!authedUser || authedUser.role !== 'admin') {
+      sendJson(res, 403, { error: 'Forbidden' });
+      return;
+    }
+
+    await jobSystem.enqueueExpiredSpotCleanup();
+    sendJson(res, 202, { accepted: true, jobsEnabled: jobSystem.enabled });
+  if (method === 'POST' && path === '/api/presence/heartbeat') {
+    const authedUser = await getUserFromAuthHeader(req.headers.authorization);
+    if (!authedUser) {
+      sendJson(res, 401, { error: 'Unauthorized' });
+      return;
+    }
+
+    const payload = await readBody(req);
+    const presence = await presenceStore.heartbeat(authedUser, payload);
+    sendJson(res, 200, presence);
+    return;
+  }
+
+  if (method === 'GET' && path === '/api/presence/active') {
+    const authedUser = await getUserFromAuthHeader(req.headers.authorization);
+    if (!authedUser) {
+      sendJson(res, 401, { error: 'Unauthorized' });
+      return;
+    }
+
+    const spotId = parsedUrl.searchParams.get('spotId');
+    const activeUsers = await presenceStore.listActive(spotId);
+    sendJson(res, 200, { activeUsers, count: activeUsers.length });
+    return;
+  }
+
+  if ((method === 'PUT' || method === 'POST') && path.startsWith('/api/events/state/')) {
+    const authedUser = await getUserFromAuthHeader(req.headers.authorization);
+    if (!authedUser) {
+      sendJson(res, 401, { error: 'Unauthorized' });
+      return;
+    }
+
+    const eventKey = path.replace('/api/events/state/', '').trim();
+    if (!eventKey) {
+      sendJson(res, 400, { error: 'eventKey is required' });
+      return;
+    }
+
+    const { state, ttlSeconds } = await readBody(req);
+    if (typeof state === 'undefined') {
+      sendJson(res, 400, { error: 'state is required' });
+      return;
+    }
+
+    const effectiveTtl = Number(ttlSeconds || EVENT_STATE_DEFAULT_TTL_SECONDS);
+    const saved = await eventStateStore.set(eventKey, state, effectiveTtl);
+    sendJson(res, 200, saved);
+    return;
+  }
+
+  if (method === 'GET' && path.startsWith('/api/events/state/')) {
+    const authedUser = await getUserFromAuthHeader(req.headers.authorization);
+    if (!authedUser) {
+      sendJson(res, 401, { error: 'Unauthorized' });
+      return;
+    }
+
+    const eventKey = path.replace('/api/events/state/', '').trim();
+    const eventState = await eventStateStore.get(eventKey);
+
+    if (!eventState) {
+      sendJson(res, 404, { error: `No temporary state found for event: ${eventKey}` });
+      return;
+    }
+
+    sendJson(res, 200, eventState);
+    return;
+  }
+
   sendJson(res, 404, { error: 'Route not found' });
 });
 
 server.listen(port, () => {
   console.log(`Backend API running on http://localhost:${port}`);
   console.log(`Using local database at: ${dbPath}`);
+  console.log(`Swagger docs available at http://localhost:${port}/api/docs`);
+});
+
+process.on('SIGINT', async () => {
+  await jobSystem.shutdown();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  await jobSystem.shutdown();
+  process.exit(0);
+  console.log(`Cache mode: ${cache.mode}`);
 });
