@@ -214,11 +214,21 @@ export const database = {
       }));
   },
 
-  getOrders({ spotId, userId }) {
+  // UPDATED: now supports from, to (date range on createdAt) and sort (asc/desc)
+  getOrders({ spotId, userId, from, to, sort = 'desc' }) {
+    const fromTime = from ? new Date(from).getTime() : null;
+    const toTime = to ? new Date(to).getTime() : null;
+
     const orders = state.orders
       .filter((order) => !spotId || order.spot_id === spotId)
       .filter((order) => !userId || order.user_id === userId)
-      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+      .filter((order) => !fromTime || new Date(order.created_at).getTime() >= fromTime)
+      .filter((order) => !toTime || new Date(order.created_at).getTime() <= toTime)
+      .sort((a, b) =>
+        sort === 'asc'
+          ? a.created_at.localeCompare(b.created_at)
+          : b.created_at.localeCompare(a.created_at)
+      );
 
     return orders.map((order) => {
       const orderItems = state.order_items.filter((item) => item.order_id === order.id);
