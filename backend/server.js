@@ -102,33 +102,52 @@ const server = createServer(async (req, res) => {
   }
 
   if (method === 'GET' && path === '/api/orders') {
-    const spotId = parsedUrl.searchParams.get('spotId');
-    const userId = parsedUrl.searchParams.get('userId');
+  const spotId = parsedUrl.searchParams.get('spotId');
+  const userId = parsedUrl.searchParams.get('userId');
 
-    const orders = database.getOrders({ spotId, userId });
-    sendJson(res, 200, orders);
-    return;
-  }
-  if (method === 'GET' && path.startsWith('/api/orders/')) {
-    console.log("I AM INSIDE ORDER ID ROUTE");
-  const orderId = path.replace('/api/orders/', '');
+  const limitParam = parsedUrl.searchParams.get('limit');
+  const offsetParam = parsedUrl.searchParams.get('offset');
 
- 
-  const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    sendJson(res, 401, { error: 'Unauthorized' });
-    return;
-  }
+  let limit = 10;   // default page size
+  let offset = 0;   // default start
 
-  const orders = database.getOrders({});
-  const order = orders.find(o => o.id === orderId);
-
-  if (!order) {
-    sendJson(res, 404, { error: `Order not found: ${orderId}` });
-    return;
+  // Validate pagination params if provided
+  if (limitParam !== null) {
+    limit = Number(limitParam);
+    if (!Number.isInteger(limit) || limit <= 0) {
+      sendJson(res, 400, { error: 'Invalid limit parameter' });
+      return;
+    }
   }
 
-  sendJson(res, 200, order);
+  if (offsetParam !== null) {
+    offset = Number(offsetParam);
+    if (!Number.isInteger(offset) || offset < 0) {
+      sendJson(res, 400, { error: 'Invalid offset parameter' });
+      return;
+    }
+  }
+
+  // Get full filtered result first
+  const allOrders = database.getOrders({ spotId, userId });
+
+  const total = allOrders.length;
+
+  // Apply pagination
+  const paginatedOrders = allOrders.slice(offset, offset + limit);
+
+  const hasMore = offset + limit < total;
+
+  sendJson(res, 200, {
+    data: paginatedOrders,
+    meta: {
+      total,
+      limit,
+      offset,
+      hasMore
+    }
+  });
+
   return;
 }
 
