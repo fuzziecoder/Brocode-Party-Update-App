@@ -50,7 +50,6 @@ const getRateLimitState = (key) => {
   return existing;
 };
 
-
 const getGlobalRateLimitState = (key) => {
   const now = Date.now();
   const existing = globalRequests.get(key);
@@ -168,7 +167,6 @@ const recordFailedLoginAttempt = (key) => {
 };
 
 const sendJson = (res, statusCode, body, extraHeaders = {}) => {
-const sendJson = (res, statusCode, body) => {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': CORS_ALLOW_ORIGIN,
@@ -287,19 +285,6 @@ const server = createServer(async (req, res) => {
       }
 
       const loginKey = getLoginKey(req, username);
-      const rateLimitState = getRateLimitState(loginKey);
-      const now = Date.now();
-      if (rateLimitState.blockedUntil > now) {
-        const retryAfterSeconds = Math.ceil((rateLimitState.blockedUntil - now) / 1000);
-        sendJson(
-          res,
-          429,
-          {
-            error: 'Too many failed login attempts. Please try again later.',
-            retryAfterSeconds,
-          },
-          { 'Retry-After': String(Math.max(retryAfterSeconds, 1)) }
-        );
       const retryAfterSeconds = await rateLimiter.getBlockedSeconds(loginKey);
       if (retryAfterSeconds > 0) {
         sendJson(res, 429, {
@@ -372,6 +357,7 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // UPDATED: supports from, to (date range) and sort (asc/desc) query params
   if (method === 'GET' && path === '/api/orders') {
     const authedUser = await getUserFromAuthHeader(req.headers.authorization);
     if (!authedUser) {
@@ -381,6 +367,24 @@ const server = createServer(async (req, res) => {
 
     const spotId = parsedUrl.searchParams.get('spotId');
     const userId = parsedUrl.searchParams.get('userId');
+    const from = parsedUrl.searchParams.get('from');
+    const to = parsedUrl.searchParams.get('to');
+    const sort = parsedUrl.searchParams.get('sort') ?? 'desc';
+
+    if (!['asc', 'desc'].includes(sort)) {
+      sendJson(res, 400, { error: "Invalid sort value. Must be 'asc' or 'desc'." });
+      return;
+    }
+
+    if (from && isNaN(Date.parse(from))) {
+      sendJson(res, 400, { error: "Invalid 'from' date. Use ISO 8601 format (e.g. 2025-01-01)." });
+      return;
+    }
+
+    if (to && isNaN(Date.parse(to))) {
+      sendJson(res, 400, { error: "Invalid 'to' date. Use ISO 8601 format (e.g. 2025-12-31)." });
+      return;
+    }
 
     if (authedUser.role !== 'admin' && userId && userId !== authedUser.id) {
       sendJson(res, 403, { error: 'Forbidden' });
@@ -389,10 +393,11 @@ const server = createServer(async (req, res) => {
 
     const effectiveUserId = authedUser.role === 'admin' ? userId : authedUser.id;
 
-    const orders = database.getOrders({ spotId, userId: effectiveUserId });
+    const orders = database.getOrders({ spotId, userId: effectiveUserId, from, to, sort });
     sendJson(res, 200, orders);
     return;
   }
+
   if (method === 'GET' && path.startsWith('/api/orders/')) {
     const orderId = path.replace('/api/orders/', '');
 
@@ -507,7 +512,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (method === 'POST' && path === '/api/jobs/reminders/run') {
-    const authedUser = getUserFromAuthHeader(req.headers.authorization);
+    const authedUser = await getUserFromAuthHeader(req.headers.authorization);
     if (!authedUser || authedUser.role !== 'admin') {
       sendJson(res, 403, { error: 'Forbidden' });
       return;
@@ -521,7 +526,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (method === 'POST' && path === '/api/jobs/cleanup/run') {
-    const authedUser = getUserFromAuthHeader(req.headers.authorization);
+    const authedUser = await getUserFromAuthHeader(req.headers.authorization);
     if (!authedUser || authedUser.role !== 'admin') {
       sendJson(res, 403, { error: 'Forbidden' });
       return;
@@ -529,6 +534,9 @@ const server = createServer(async (req, res) => {
 
     await jobSystem.enqueueExpiredSpotCleanup();
     sendJson(res, 202, { accepted: true, jobsEnabled: jobSystem.enabled });
+    return;
+  }
+
   if (method === 'POST' && path === '/api/presence/heartbeat') {
     const authedUser = await getUserFromAuthHeader(req.headers.authorization);
     if (!authedUser) {
@@ -606,6 +614,7 @@ server.listen(port, () => {
   console.log(`Backend API running on http://localhost:${port}`);
   console.log(`Using local database at: ${dbPath}`);
   console.log(`Swagger docs available at http://localhost:${port}/api/docs`);
+  console.log(`Cache mode: ${cache.mode}`);
 });
 
 process.on('SIGINT', async () => {
@@ -616,5 +625,4 @@ process.on('SIGINT', async () => {
 process.on('SIGTERM', async () => {
   await jobSystem.shutdown();
   process.exit(0);
-  console.log(`Cache mode: ${cache.mode}`);
 });
