@@ -252,6 +252,9 @@ export const database = {
 
   createOrder({ spotId, userId, items }) {
     const parsedItems = items.map((item) => {
+      if ('name' in item || 'unitPrice' in item || 'total' in item) {
+      throw new Error('Do not provide name, unitPrice, or total. These are derived from catalog. ')
+      }
       const quantity = Number(item.quantity || 0);
       if (!item.productId || !Number.isInteger(quantity) || quantity <= 0) {
         throw new Error('Each order item must include productId and a positive integer quantity');
