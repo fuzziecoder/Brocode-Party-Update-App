@@ -10,6 +10,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { NotificationsProvider } from "./contexts/NotificationsContext";
 import { ChatProvider } from "./contexts/ChatContext";
 import { PaymentProvider } from "./contexts/PaymentContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
 
 const SplashPage = lazy(() => import("./pages/SplashPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
@@ -33,6 +34,7 @@ const RouteFallback: React.FC = () => (
 
 const App: React.FC = () => {
   return (
+    <ThemeProvider>
     <AuthProvider>
       <NotificationsProvider>
         <PaymentProvider>
@@ -76,6 +78,7 @@ const App: React.FC = () => {
         </PaymentProvider>
       </NotificationsProvider>
     </AuthProvider>
+    </ThemeProvider>
   );
 };
 

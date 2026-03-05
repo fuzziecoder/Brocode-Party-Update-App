@@ -75,6 +75,79 @@
     .animate-star-movement-top {
       animation: star-movement-top linear infinite alternate;
     }
+
+    /* ===== LIGHT THEME OVERRIDES ===== */
+    .light-theme body {
+      background-color: #ffffff !important;
+      color: #1f2937 !important;
+    }
+
+    .light-theme ::-webkit-scrollbar-track {
+      background: #f3f4f6;
+    }
+
+    .light-theme ::-webkit-scrollbar-thumb {
+      background-color: #d1d5db;
+      border: 2px solid #f3f4f6;
+    }
+
+    .light-theme ::-webkit-scrollbar-thumb:hover {
+      background-color: #9ca3af;
+    }
+
+    /* Sidebar & nav backgrounds */
+    .light-theme .bg-black { background-color: #ffffff !important; }
+    .light-theme .bg-\[black\] { background-color: #ffffff !important; }
+    .light-theme .bg-\[\#111111\] { background-color: #f9fafb !important; }
+    .light-theme .bg-\[\#111\] { background-color: #f3f4f6 !important; }
+    .light-theme .bg-\[\#0a0a0a\] { background-color: #f9fafb !important; }
+    .light-theme .bg-\[\#1C1C1C\] { background-color: #ffffff !important; box-shadow: 0 -1px 10px rgba(0,0,0,0.08) !important; }
+
+    /* Zinc backgrounds */
+    .light-theme .bg-zinc-900 { background-color: #f3f4f6 !important; }
+    .light-theme .bg-zinc-800 { background-color: #e5e7eb !important; }
+    .light-theme .bg-zinc-800\/50 { background-color: rgba(229, 231, 235, 0.5) !important; }
+    .light-theme .bg-zinc-900\/50 { background-color: rgba(243, 244, 246, 0.5) !important; }
+
+    /* Text colors */
+    .light-theme .text-white { color: #111827 !important; }
+    .light-theme .text-gray-200 { color: #374151 !important; }
+    .light-theme .text-gray-400 { color: #6b7280 !important; }
+    .light-theme .text-zinc-400 { color: #6b7280 !important; }
+    .light-theme .text-zinc-500 { color: #9ca3af !important; }
+    .light-theme .text-zinc-600 { color: #6b7280 !important; }
+
+    /* Borders */
+    .light-theme .border-zinc-800 { border-color: #e5e7eb !important; }
+    .light-theme .border-zinc-700 { border-color: #d1d5db !important; }
+    .light-theme .border-zinc-700\/80 { border-color: rgba(209, 213, 219, 0.8) !important; }
+    .light-theme .border-white\/5 { border-color: rgba(0, 0, 0, 0.06) !important; }
+
+    /* Hover states */
+    .light-theme .hover\:bg-zinc-800:hover { background-color: #e5e7eb !important; }
+    .light-theme .hover\:bg-zinc-800\/50:hover { background-color: rgba(229, 231, 235, 0.5) !important; }
+    .light-theme .hover\:text-white:hover { color: #111827 !important; }
+    .light-theme .hover\:text-zinc-300:hover { color: #374151 !important; }
+
+    /* Active nav pill for mobile */
+    .light-theme .bg-white.text-black {
+      background-color: #111827 !important;
+      color: #ffffff !important;
+    }
+
+    /* Cards & panels */
+    .light-theme .bg-black\/50 { background-color: rgba(255, 255, 255, 0.7) !important; }
+
+    /* Border badges */
+    .light-theme .border-\[\#1C1C1C\] { border-color: #ffffff !important; }
+    .light-theme .border-\[\#111\] { border-color: #f3f4f6 !important; }
+
+    /* Dashed borders */
+    .light-theme .border-dashed.border-zinc-700 { border-color: #d1d5db !important; }
+    .light-theme .border-dashed.border-zinc-800 { border-color: #d1d5db !important; }
+
+    /* Group hover text */
+    .light-theme .group-hover\:bg-zinc-800 { background-color: #e5e7eb !important; }
   </style>
   <script
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC3CGsazjI6MuH2wCBO5m5AADSbahrg8yI&libraries=marker,places"

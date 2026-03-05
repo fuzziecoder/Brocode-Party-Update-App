@@ -2,11 +2,12 @@
 import React from 'react';
 // FIX: Use namespace import for react-router-dom to address potential module resolution issues.
 import * as ReactRouterDOM from 'react-router-dom';
-import { Home, CreditCard, History, Bell, User, Zap, ChevronsUpDown, LogOut, MessageSquare, Wine, Download, X } from 'lucide-react';
+import { Home, CreditCard, History, Bell, User, Zap, ChevronsUpDown, LogOut, MessageSquare, Wine, Download, X, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotifications } from '../../contexts/NotificationsContext';
 import { useChat } from '../../contexts/ChatContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import ShinyText from '../common/ShinyText';
 
 const navItems = [
@@ -19,12 +20,14 @@ const navItems = [
 ];
 
 const bottomNavItems = [
+    { path: '/dashboard/settings', icon: Settings, label: 'Settings' },
     { path: '/dashboard/profile', icon: User, label: 'Profile' }
 ];
 
 const NavItem: React.FC<{ item: typeof navItems[0]; isMobile: boolean }> = ({ item, isMobile }) => {
     const { unreadCount: unreadNotificationsCount } = useNotifications();
     const { unreadCount: unreadChatCount } = useChat();
+    const { isDark } = useTheme();
     const isNotificationsLink = item.label === 'Notifications';
     const isChatLink = item.label === 'Chat';
     const badgeCount = isNotificationsLink ? unreadNotificationsCount : (isChatLink ? unreadChatCount : 0);
@@ -39,13 +42,15 @@ const NavItem: React.FC<{ item: typeof navItems[0]; isMobile: boolean }> = ({ it
                 {({ isActive }) => (
                     <motion.div
                         layout
-                        className={`flex items-center justify-center gap-2 h-11 rounded-full transition-colors duration-300 ${isActive ? 'bg-white text-black px-4' : 'text-gray-400 w-11 group-hover:bg-zinc-800'
+                        className={`flex items-center justify-center gap-2 h-11 rounded-full transition-colors duration-300 ${isActive
+                            ? (isDark ? 'bg-white text-black px-4' : 'bg-gray-900 text-white px-4')
+                            : (isDark ? 'text-gray-400 w-11 group-hover:bg-zinc-800' : 'text-gray-500 w-11 group-hover:bg-gray-100')
                             }`}
                     >
                         <div className="relative">
                             <item.icon className="h-5 w-5 flex-shrink-0" />
                             {badgeCount > 0 && (
-                                <span className={`absolute -top-1.5 -right-1.5 bg-pink-500 text-white text-[9px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center border-2 ${isActive ? 'border-white' : 'border-[#1C1C1C]'}`}>
+                                <span className={`absolute -top-1.5 -right-1.5 bg-pink-500 text-white text-[9px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center border-2 ${isActive ? (isDark ? 'border-white' : 'border-gray-900') : (isDark ? 'border-[#1C1C1C]' : 'border-white')}`}>
                                     {badgeCount > 9 ? '9+' : badgeCount}
                                 </span>
                             )}
@@ -73,8 +78,8 @@ const NavItem: React.FC<{ item: typeof navItems[0]; isMobile: boolean }> = ({ it
             to={item.path}
             className={({ isActive }) =>
                 `flex items-center px-3 py-2.5 rounded-md transition-colors duration-200 text-sm font-medium ${isActive
-                    ? 'bg-zinc-800 text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-zinc-800/50'
+                    ? (isDark ? 'bg-zinc-800 text-white' : 'bg-gray-200 text-gray-900')
+                    : (isDark ? 'text-gray-400 hover:text-white hover:bg-zinc-800/50' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100')
                 }`
             }
         >
@@ -93,6 +98,7 @@ const NavItem: React.FC<{ item: typeof navItems[0]; isMobile: boolean }> = ({ it
 const DashboardLayout: React.FC = () => {
     const location = ReactRouterDOM.useLocation();
     const { profile, logout } = useAuth();
+    const { isDark } = useTheme();
     const allNavItemsForMobile = [...navItems, ...bottomNavItems];
     const [showDownloadBanner, setShowDownloadBanner] = React.useState(() => {
         // Check if banner was dismissed before
@@ -101,30 +107,30 @@ const DashboardLayout: React.FC = () => {
     });
 
     return (
-        <div className="flex h-screen bg-black text-gray-200 font-sans">
+        <div className={`flex h-screen font-sans ${isDark ? 'bg-black text-gray-200' : 'bg-white text-gray-800'}`}>
             {/* Sidebar for Desktop */}
-            <aside className="hidden md:flex w-64 flex-col p-4 bg-[#111111] border-r border-zinc-800">
+            <aside className={`hidden md:flex w-64 flex-col p-4 border-r ${isDark ? 'bg-[#111111] border-zinc-800' : 'bg-gray-50 border-gray-200'}`}>
                 <div className="flex items-center mb-6 h-10 px-2 space-x-2">
-                    <Zap className="h-6 w-6 text-white" />
+                    <Zap className={`h-6 w-6 ${isDark ? 'text-white' : 'text-gray-900'}`} />
                     <ShinyText
                         text="BROCODE"
                         className="font-bold text-xl"
                         style={{ fontFamily: "'Zen Dots', cursive" }}
                         speed={3}
-                        color="#ffffff"
+                        color={isDark ? "#ffffff" : "#111827"}
                         shineColor="#6366f1"
                     />
                 </div>
 
                 <div className="px-2 mb-6">
-                    <button className="w-full flex items-center justify-between p-2 rounded-lg bg-zinc-900 border border-zinc-700/80 hover:bg-zinc-800 transition-colors">
+                    <button className={`w-full flex items-center justify-between p-2 rounded-lg border transition-colors ${isDark ? 'bg-zinc-900 border-zinc-700/80 hover:bg-zinc-800' : 'bg-white border-gray-200 hover:bg-gray-100'}`}>
                         <div className="flex items-center space-x-3">
                             <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white text-sm overflow-hidden">
                                 {profile?.profile_pic_url ? <img src={profile.profile_pic_url} alt={profile.name} className="w-full h-full object-cover" /> : profile?.name.charAt(0).toUpperCase()}
                             </div>
-                            <span className="font-semibold text-white text-sm">{profile?.name}</span>
+                            <span className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{profile?.name}</span>
                         </div>
-                        <ChevronsUpDown className="w-4 h-4 text-gray-400" />
+                        <ChevronsUpDown className={`w-4 h-4 ${isDark ? 'text-gray-400' : 'text-gray-400'}`} />
                     </button>
                 </div>
 
@@ -136,7 +142,7 @@ const DashboardLayout: React.FC = () => {
                         {bottomNavItems.map(item => <NavItem key={item.path} item={item} isMobile={false} />)}
                         <button
                             onClick={logout}
-                            className="w-full flex items-center px-3 py-2.5 rounded-md transition-colors duration-200 text-sm font-medium text-gray-400 hover:text-white hover:bg-zinc-800/50"
+                            className={`w-full flex items-center px-3 py-2.5 rounded-md transition-colors duration-200 text-sm font-medium ${isDark ? 'text-gray-400 hover:text-white hover:bg-zinc-800/50' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
                         >
                             <LogOut className="h-5 w-5 mr-3" />
                             <span>Logout</span>
@@ -147,28 +153,28 @@ const DashboardLayout: React.FC = () => {
 
             {/* Main Content */}
             <main className="flex-1 flex flex-col overflow-hidden">
-                <header className="md:hidden flex justify-between items-center p-4 bg-[#111111] border-b border-zinc-800">
+                <header className={`md:hidden flex justify-between items-center p-4 border-b ${isDark ? 'bg-[#111111] border-zinc-800' : 'bg-white border-gray-200'}`}>
                     <ShinyText
                         text="BROCODE"
                         className="font-bold text-xl"
                         style={{ fontFamily: "'Zen Dots', cursive" }}
                         speed={3}
-                        color="#ffffff"
+                        color={isDark ? "#ffffff" : "#111827"}
                         shineColor="#6366f1"
                     />
                     <div className="flex items-center space-x-3">
                         <button
                             onClick={logout}
-                            className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+                            className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-gray-100'}`}
                             aria-label="Logout"
                         >
-                            <LogOut className="h-5 w-5 text-gray-400 hover:text-white" />
+                            <LogOut className={`h-5 w-5 ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`} />
                         </button>
                         <span className="text-sm">{profile?.name}</span>
                         <img src={profile?.profile_pic_url} alt="profile" className="w-8 h-8 rounded-full" />
                     </div>
                 </header>
-                <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-[#0a0a0a] pb-28 md:pb-8">
+                <div className={`flex-1 overflow-y-auto p-4 md:p-8 pb-28 md:pb-8 ${isDark ? 'bg-[#0a0a0a]' : 'bg-gray-50'}`}>
                     <AnimatePresence mode="wait">
                         <motion.div
                             key={location.pathname}
@@ -185,7 +191,7 @@ const DashboardLayout: React.FC = () => {
 
             {/* Bottom Nav for Mobile */}
             <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 z-50">
-                <nav className="flex justify-around items-center bg-[#1C1C1C] rounded-full h-16 shadow-lg">
+                <nav className={`flex justify-around items-center rounded-full h-16 shadow-lg ${isDark ? 'bg-[#1C1C1C]' : 'bg-white border border-gray-200'}`}>
                     {allNavItemsForMobile.map(item => <NavItem key={item.path} item={item} isMobile={true} />)}
                 </nav>
             </div>
