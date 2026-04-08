@@ -242,7 +242,21 @@ export const database = {
 
   createOrder({ spotId, userId, items }) {
     const parsedItems = items.map((item) => {
-      if ('name' in item || 'unitPrice' in item || 'total' in item) {
+      if (
+        !item || 
+        typeof item!== 'object' || 
+        Array.isArray(item)
+      ) 
+      {
+        throw new Error('Invalid item format');
+      }
+      if(
+        //if item has it's own property
+        Object.prototype.hasOwnProperty.call(item, 'name') ||
+        Object.prototype.hasOwnProperty.call(item, 'unitPrice') ||
+        Object.prototype.hasOwnProperty.call(item, 'total')
+      )
+      {
       throw new Error('Do not provide name, unitPrice, or total. These are derived from catalog. ')
       }
       const quantity = Number(item.quantity || 0);
